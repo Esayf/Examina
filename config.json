@@ -8,6 +8,14 @@
       "feepayerAlias": "ekdy1hfscqpnzqcnjrcm2ytx6yxwjc5vabsdzfnbdety9g99sma7",
       "fee": "2",
       "smartContract": "Examina"
+    },
+    "testnet": {
+      "url": "https://proxy.berkeley.minaexplorer.com/graphql",
+      "keyPath": "keys/testnet.json",
+      "feepayerKeyPath": "C:\\Users\\ahmet/.cache/zkapp-cli/keys/deployerkey.json",
+      "feepayerAlias": "deployerkey",
+      "fee": "0.1",
+      "smartContract": "Examina"
     }
   }
 }

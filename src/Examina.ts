@@ -8,9 +8,18 @@ import {
   State,
   method,
   state,
+  ZkProgram,
+  SelfProof,
+  UInt64,
+  Provable,
 } from 'o1js';
+import {
+  CalculateScore
+} from './ExaminaRecursion.js'
 
-export class ScoreProof extends Proof<Field, Field> {}
+await CalculateScore.compile()
+
+class CalculateProof extends ZkProgram.Proof(CalculateScore) {}
 
 export class Examina extends SmartContract {
   events = {
@@ -80,7 +89,7 @@ this.isOver.set(Bool(true).toField());
       this.userScores.set(new_root);
   }
 
-  @method checkScore(proof: ScoreProof) {
+  @method checkScore(proof: CalculateProof) {
       proof.verify();
 
       const is_over = this.isOver.get();

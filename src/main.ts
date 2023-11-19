@@ -9,7 +9,7 @@ import {
   Poseidon,
 } from 'o1js';
 
-const useProof = false;
+const useProof = true;
 const Local = Mina.LocalBlockchain({ proofsEnabled: useProof });
 Mina.setActiveInstance(Local);
 
@@ -21,6 +21,9 @@ const { privateKey: senderKey, publicKey: senderAccount } = Local.testAccounts[1
 const zkAppPrivateKey = PrivateKey.random();
 const zkAppAddress = zkAppPrivateKey.toPublicKey();
 // create an instance of Square - and deploy it to zkAppAddress
+
+await CalculateScore.compile()
+await Examina.compile()
 
 const zkAppInstance = new Examina(zkAppAddress);
 const deployTxn = await Mina.transaction(deployerAccount, () => {

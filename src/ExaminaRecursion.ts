@@ -19,7 +19,7 @@ export const CalculateScore = ZkProgram({
         step: {
             privateInputs: [SelfProof, Field, Field, Field],
 
-            method(x: Field, earlierProof: SelfProof<Field, void>, user_answers: Field, answers: Field, score: Field) {
+            method(x: Field, earlierProof: SelfProof<Field, Field>, user_answers: Field, answers: Field, score: Field) {
                 earlierProof.verify();
                 earlierProof.publicInput.mul(10).assertEquals(x);
 
