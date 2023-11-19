@@ -1,3 +1,3 @@
-import { Add } from './Add.js';
+import { Examina } from './Examina.js';
 
-export { Add };
+export { Examina };
