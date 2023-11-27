@@ -64,7 +64,7 @@ var score = Field(0)
 for (let index = 0; index < 3; index++) {
   console.log("x main.ts: ", x.toString())
   
-  const proof1 = await CalculateScore.step(x, proof, Field(2333355), Field(1000050), score);
+  const proof1 = await CalculateScore.step(x, proof, Field(2333355), Field(1233553), score);
   proof = proof1
 
   x = x.mul(10)

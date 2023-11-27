@@ -2,7 +2,7 @@
   "version": 1,
   "deployAliases": {
     "examina": {
-      "url": "https://proxy.berkeley.minaexplorer.com/graphql",
+      "url": "https://proxy.testworld.minaexplorer.com/graphql",
       "keyPath": "keys/examina.json",
       "feepayerKeyPath": "C:\\Users\\ahmet/.cache/zkapp-cli/keys/ekdy1hfscqpnzqcnjrcm2ytx6yxwjc5vabsdzfnbdety9g99sma7.json",
       "feepayerAlias": "ekdy1hfscqpnzqcnjrcm2ytx6yxwjc5vabsdzfnbdety9g99sma7",
@@ -10,7 +10,7 @@
       "smartContract": "Examina"
     },
     "testnet": {
-      "url": "https://proxy.berkeley.minaexplorer.com/graphql",
+      "url": "https://proxy.testworld.minaexplorer.com/graphql",
       "keyPath": "keys/testnet.json",
       "feepayerKeyPath": "C:\\Users\\ahmet/.cache/zkapp-cli/keys/deployerkey.json",
       "feepayerAlias": "deployerkey",
