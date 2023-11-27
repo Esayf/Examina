@@ -9,7 +9,6 @@ import {
   ZkProgram,
   PrivateKey,
   Reducer,
-  Signature,
   MerkleMap,
   Struct,
   PublicKey
@@ -60,6 +59,10 @@ export class Examina extends SmartContract {
     }
     
     @method submitAnswers(privateKey: PrivateKey, answers: Field) {
+        const is_over = this.isOver.getAndAssertEquals()
+
+        is_over.assertEquals(Bool(false).toField())
+        
         const userAnswers = new UserAnswers({
             publicKey: privateKey.toPublicKey(),
             answers: answers
@@ -69,24 +72,20 @@ export class Examina extends SmartContract {
     }
 
     @method publishAnswers(answers: Field, salt: Field) {
-        const is_over = this.isOver.get();
-        this.isOver.assertEquals(is_over);
+        const is_over = this.isOver.getAndAssertEquals()
 
         is_over.assertEquals(Bool(false).toField());
 
-        const initial_answers = this.answers.get();
-        this.answers.assertEquals(initial_answers);
+        const initial_answers = this.answers.getAndAssertEquals()
 
         const hashed_answers = Poseidon.hash([answers, salt]);
         initial_answers.assertEquals(hashed_answers);
 
-        const user_answers = this.userAnswersRoot.get();
-        this.userAnswersRoot.assertEquals(user_answers);
+        const user_answers = this.userAnswersRoot.getAndAssertEquals()
 
         const merkleMap = new MerkleMap()
         
-        const actionState = this.actionState.get();
-        this.actionState.assertEquals(actionState);
+        const actionState = this.actionState.getAndAssertEquals()
 
         const pendingActions = this.reducer.getActions({
             fromActionState: actionState,
@@ -113,22 +112,17 @@ export class Examina extends SmartContract {
     }
 
     @method checkQuestions(exam: Field) {
-        const hash = this.hashedQuestions.get();
-        this.hashedQuestions.assertEquals(hash);
+        const hash = this.hashedQuestions.getAndAssertEquals()
 
-        this.hashedQuestions.assertEquals(exam);
+        return hash.equals(exam)
     }
 
     @method checkScore(proof: CalculateProof) {
         proof.verify();
 
-        const is_over = this.isOver.get();
-        this.isOver.assertEquals(is_over);
+        const is_over = this.isOver.getAndAssertEquals()
 
         is_over.assertEquals(Bool(true).toField());
-
-        const user_answers_root = this.userAnswersRoot.get();
-        this.userAnswersRoot.assertEquals(user_answers_root);
 
         const score = proof.publicOutput;
 
