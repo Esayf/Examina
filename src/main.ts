@@ -1,4 +1,4 @@
-import { Examina } from './Examina.js';
+import { Examina, MerkleWitnessClass } from './Examina.js';
 import { CalculateScore } from './ExaminaRecursion.js'
 import {
   Field,
@@ -7,72 +7,100 @@ import {
   AccountUpdate,
   MerkleMap,
   Poseidon,
+  Reducer,
+  MerkleTree,
 } from 'o1js';
 
-const useProof = true;
-const Local = Mina.LocalBlockchain({ proofsEnabled: useProof });
+
+const merkleMap = new MerkleTree(20)
+
+const doProofs = true;
+const initialRoot = merkleMap.getRoot();
+
+let Local = Mina.LocalBlockchain({ proofsEnabled: doProofs });
 Mina.setActiveInstance(Local);
 
-const { privateKey: deployerKey, publicKey: deployerAccount } = Local.testAccounts[0];
-const { privateKey: senderKey, publicKey: senderAccount } = Local.testAccounts[1];
+// a test account that pays all the fees, and puts additional funds into the zkapp
+let feePayerKey = Local.testAccounts[0].privateKey;
+let feePayer = Local.testAccounts[0].publicKey;
 
-// ----------------------------------------------------
-// Create a public/private key pair. The public key is your address and where you deploy the zkApp to
-const zkAppPrivateKey = PrivateKey.random();
-const zkAppAddress = zkAppPrivateKey.toPublicKey();
-// create an instance of Square - and deploy it to zkAppAddress
-
-await CalculateScore.compile()
-await Examina.compile()
-
-const zkAppInstance = new Examina(zkAppAddress);
-const deployTxn = await Mina.transaction(deployerAccount, () => {
-  AccountUpdate.fundNewAccount(deployerAccount);
-  zkAppInstance.deploy();
-});
-await deployTxn.sign([deployerKey, zkAppPrivateKey]).send();
-// get the initial state of Square after deployment
-const num0 = zkAppInstance.answers.get();
-console.log('state after init:', num0.toString());
-
-const map = new MerkleMap()
-map.set(Field(0), Field(1010101010))
-
-const answers = Field(123012301241230)
-const salt = Field.random()
-
-console.log("salt: ", salt)
-
-const questions = Field("12345")
-const hash = Poseidon.hash(questions.toFields())
-
-// ----------------------------------------------------
-const txn1 = await Mina.transaction(senderAccount, () => {
-  zkAppInstance.initState(answers, salt, hash, map.getRoot());
-});
-await txn1.prove();
-await txn1.sign([senderKey]).send();
-const num1 = zkAppInstance.answers.get();
-console.log('state after txn1:', num1.toString());
-
-const { verificationKey } = await CalculateScore.compile();
-
-var proof = await CalculateScore.baseCase(Field(1));
-var x = Field(10)
-var score = Field(0)
-
-for (let index = 0; index < 3; index++) {
-  console.log("x main.ts: ", x.toString())
-  
-  const proof1 = await CalculateScore.step(x, proof, Field(2333355), Field(1233553), score);
-  proof = proof1
-
-  x = x.mul(10)
-  score = proof.publicOutput
-
-  console.log(score.toString())
+// the zkapp account
+let zkappKey = PrivateKey.fromBase58(
+  'EKEQc95PPQZnMY9d9p1vq1MWLeDJKtvKj4V75UDG3rjnf32BerWD'
+);
+let zkappAddress = zkappKey.toPublicKey();
+let zkapp = new Examina(zkappAddress);
+if (doProofs) {
+  console.log('compile');
+  await Examina.compile();
+} else {
+  // TODO: if we don't do this, then `analyzeMethods()` will be called during `runUnchecked()` in the tx callback below,
+  // which currently fails due to `finalize_is_running` in snarky not resetting internal state, and instead setting is_running unconditionally to false,
+  // so we can't nest different snarky circuit runners
+  Examina.analyzeMethods();
 }
 
-/*
+console.log('deploy');
 
-*/
+let tx = await Mina.transaction(feePayer, () => {
+  AccountUpdate.fundNewAccount(feePayer);
+  zkapp.deploy();
+});
+await tx.prove()
+await tx.sign([feePayerKey, zkappKey]).send();
+
+console.log('create exam');
+
+const answers = Field(12345)
+const secretKey = Field.random()
+
+console.log("secret key: ", secretKey.toString())
+
+tx = await Mina.transaction(feePayer, () => {
+  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot)
+});
+await tx.prove()
+await tx.sign([feePayerKey, zkappKey]).send();
+
+console.log('applying actions..');
+
+console.log('action 1');
+
+const pk = PrivateKey.random()
+
+tx = await Mina.transaction(feePayer, () => {
+  zkapp.submitAnswers(pk, Field(12345), new MerkleWitnessClass(merkleMap.getWitness(1n)));
+});
+await tx.prove();
+await tx.sign([feePayerKey]).send();
+
+merkleMap.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(12345))))
+
+console.log('action 2');
+const pk1 = PrivateKey.random()
+
+tx = await Mina.transaction(feePayer, () => {
+  zkapp.submitAnswers(pk1, Field(55555), new MerkleWitnessClass(merkleMap.getWitness(2n)));
+});
+await tx.prove();
+await tx.sign([feePayerKey]).send();
+
+merkleMap.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(55555))))
+
+console.log('rolling up pending actions..');
+
+console.log('state before: ' + zkapp.usersRoot.get());
+
+tx = await Mina.transaction(feePayer, () => {
+  zkapp.publishAnswers(answers, secretKey);
+});
+await tx.prove();
+await tx.sign([feePayerKey]).send();
+
+console.log('state after rollup: ' + zkapp.usersRoot.get());
+
+console.log("answers:", zkapp.answers.get())
+console.log("isOver:", zkapp.isOver.get())
+console.log("examKey:", zkapp.examSecretKey.get())
+
+console.log(new MerkleWitnessClass(merkleMap.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(12345)))))

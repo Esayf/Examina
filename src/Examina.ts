@@ -1,130 +1,137 @@
 import {
-  Bool,
-  Field,
-  Poseidon,
-  SmartContract,
-  State,
-  method,
-  state,
-  ZkProgram,
-  PrivateKey,
-  Reducer,
-  MerkleMap,
-  Struct,
-  PublicKey
+    Bool,
+    Field,
+    Poseidon,
+    SmartContract,
+    State,
+    method,
+    state,
+    PrivateKey,
+    Reducer,
+    Struct,
+    PublicKey,
+    MerkleWitness,
+    ZkProgram
 } from 'o1js';
 import {
-  CalculateScore
+    CalculateScore
 } from './ExaminaRecursion.js'
 
 await CalculateScore.compile()
 
 class CalculateProof extends ZkProgram.Proof(CalculateScore) {}
 
-class UserAnswers extends Struct({
+export class MerkleWitnessClass extends MerkleWitness(20) {};
+
+export class UserAnswers extends Struct({
     publicKey: PublicKey,
     answers: Field,
+    witness: MerkleWitnessClass
 }) {
+    constructor (publicKey: PublicKey, answers: Field, witness: MerkleWitnessClass) {
+        super({publicKey, answers, witness})
+        this.publicKey = publicKey
+        this.answers = answers
+        this.witness = witness
+    }
+
     hash() {
-        return Poseidon.hash(this.publicKey.toFields())
+        return Poseidon.hash(this.publicKey.toFields().concat(this.answers))
     }
 }
 
 export class Examina extends SmartContract {
-    events = {
-        ScoreChecked: Field,
-    };
+    reducer = Reducer({ actionType: UserAnswers });
 
-    reducer = Reducer({ actionType: UserAnswers })
+    @state(Field) answers = State<Field>()
+    @state(Field) hashedQuestions = State<Field>()
+    @state(Field) usersRoot = State<Field>()
+    @state(Field) isOver = State<Field>()
+    @state(Field) actionState = State<Field>()
+    @state(Field) examSecretKey = State<Field>()
 
-    @state(Field) answers = State<Field>();
-    @state(Field) hashedQuestions = State<Field>();
-    @state(Field) userAnswersRoot = State<Field>();
-    @state(Field) isOver = State<Field>();
-    @state(Field) actionState = State<Field>();
-    @state(Field) examKey = State<Field>();
+    init() {
+        super.init()
+        this.actionState.set(Reducer.initialActionState)
+        this.isOver.set(Bool(false).toField())
+
+        this.requireSignature()
+    }
 
     @method initState(
         answers: Field,
-        salt: Field,
+        secretKey: Field,
         hashed_questions: Field,
-        user_answers_root: Field
+        usersInitialRoot: Field
     ) {
-        super.init();
-        this.answers.set(Poseidon.hash([answers, salt]));
-        this.hashedQuestions.set(hashed_questions);
-        this.isOver.set(Bool(false).toField());
-        this.userAnswersRoot.set(user_answers_root);
-        this.examKey.set(Poseidon.hash(salt.toFields()))
-    }
-    
-    @method submitAnswers(privateKey: PrivateKey, answers: Field) {
-        const is_over = this.isOver.getAndAssertEquals()
-
-        is_over.assertEquals(Bool(false).toField())
-        
-        const userAnswers = new UserAnswers({
-            publicKey: privateKey.toPublicKey(),
-            answers: answers
-        })
-
-        this.reducer.dispatch(userAnswers)
+        this.answers.set(Poseidon.hash([answers, secretKey]))
+        this.hashedQuestions.set(hashed_questions)
+        this.usersRoot.set(usersInitialRoot)
+        this.examSecretKey.set(Poseidon.hash(secretKey.toFields()))
     }
 
-    @method publishAnswers(answers: Field, salt: Field) {
-        const is_over = this.isOver.getAndAssertEquals()
+    @method submitAnswers(privateKey: PrivateKey, answers: Field, witness: MerkleWitnessClass) {
+        const isOver = this.isOver.getAndAssertEquals()
 
-        is_over.assertEquals(Bool(false).toField());
+        isOver.assertEquals(Bool(false).toField())
 
-        const initial_answers = this.answers.getAndAssertEquals()
+        const user = new UserAnswers(privateKey.toPublicKey(), answers, witness)
 
-        const hashed_answers = Poseidon.hash([answers, salt]);
-        initial_answers.assertEquals(hashed_answers);
+        this.reducer.dispatch(user);
+    }
 
-        const user_answers = this.userAnswersRoot.getAndAssertEquals()
+    @method publishAnswers(answers: Field, secretKey: Field) {
+        const isOver = this.isOver.getAndAssertEquals()
 
-        const merkleMap = new MerkleMap()
-        
+        isOver.assertEquals(Bool(false).toField())
+
+        const initalAnswers = this.answers.getAndAssertEquals()
+
+        const hashedAnswers = Poseidon.hash([answers, secretKey])
+        initalAnswers.assertEquals(hashedAnswers)
+
+        const usersRoot = this.usersRoot.getAndAssertEquals()
         const actionState = this.actionState.getAndAssertEquals()
 
-        const pendingActions = this.reducer.getActions({
-            fromActionState: actionState,
-        });
+        this.isOver.set(Bool(true).toField())
 
-        let { state: newRoot, actionState: newActionState } = this.reducer.reduce(
+        let pendingActions = this.reducer.getActions({
+            fromActionState: actionState,
+        })
+
+        let { state: newRoot, actionState: newActionState } =
+        this.reducer.reduce(
             pendingActions,
             Field,
-            (state: Field, action: UserAnswers) => {
-                merkleMap.set(action.hash(), action.answers)
-                return merkleMap.getRoot()
-            },
-            { state: user_answers, actionState }
-        );
+            (_state: Field, action: UserAnswers) => {
+                const hash = action.hash()
 
-        this.userAnswersRoot.set(newRoot);
+                return action.witness.calculateRoot(hash);
+            },
+            { state: usersRoot, actionState }
+        )
+
+        this.usersRoot.set(newRoot);
         this.actionState.set(newActionState);
 
-        this.answers.set(answers);
-        this.examKey.set(salt)
-        this.isOver.set(Bool(true).toField());
-        
-        return merkleMap
+        this.answers.set(answers)
+        this.examSecretKey.set(secretKey)
     }
 
-    @method checkQuestions(exam: Field) {
+    @method verifyQuestions(exam: Field) {
         const hash = this.hashedQuestions.getAndAssertEquals()
-
-        return hash.equals(exam)
+        const hashedExam = Poseidon.hash(exam.toFields())
+        
+        return hash.equals(hashedExam)
     }
 
     @method checkScore(proof: CalculateProof) {
-        proof.verify();
+        proof.verify()
+        
+        const isOver = this.isOver.getAndAssertEquals()
+        isOver.assertEquals(Bool(true).toField())
 
-        const is_over = this.isOver.getAndAssertEquals()
-
-        is_over.assertEquals(Bool(true).toField());
-
-        const score = proof.publicOutput;
+        const score = proof.publicOutput
 
         return score
     }
