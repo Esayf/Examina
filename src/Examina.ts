@@ -17,11 +17,11 @@ import {
     CalculateScore
 } from './ExaminaRecursion.js'
 
+export class MerkleWitnessClass extends MerkleWitness(20) {}
+
 await CalculateScore.compile()
 
 class CalculateProof extends ZkProgram.Proof(CalculateScore) {}
-
-export class MerkleWitnessClass extends MerkleWitness(20) {};
 
 export class UserAnswers extends Struct({
     publicKey: PublicKey,
@@ -125,11 +125,19 @@ export class Examina extends SmartContract {
         return hash.equals(hashedExam)
     }
 
-    @method checkScore(proof: CalculateProof) {
-        proof.verify()
-        
+    @method checkScore(proof: CalculateProof, witness: MerkleWitnessClass, privateKey: PrivateKey) {
         const isOver = this.isOver.getAndAssertEquals()
         isOver.assertEquals(Bool(true).toField())
+        
+        const usersRoot = this.usersRoot.getAndAssertEquals()
+        const answers = this.answers.getAndAssertEquals()
+
+        answers.assertEquals(proof.publicInput.answers)
+        
+        const witnessRoot = witness.calculateRoot(Poseidon.hash(privateKey.toPublicKey().toFields().concat(proof.publicInput.userAnswers)))
+        usersRoot.assertEquals(witnessRoot)
+
+        proof.verify()
 
         const score = proof.publicOutput
 
