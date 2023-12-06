@@ -1,55 +1,53 @@
-import { Field, ZkProgram, SelfProof, Provable, UInt64, Bool, Struct, PrivateKey, Poseidon } from 'o1js';
-import { MerkleWitnessClass } from './Examina.js'
-
-export class PublicInputs extends Struct({
-    userAnswers: Field,
-    answers: Field,
-    index: Field,
-}) {
-    updateIndex() {
-        return new PublicInputs({
-            userAnswers: this.userAnswers,
-            answers: this.answers,
-            index: this.index.add(3),
-        })
-    }
-}
+import { Field, ZkProgram, SelfProof, Provable, Struct, Bool, Poseidon } from 'o1js';
 
 export const CalculateScore = ZkProgram({
     name: "calculate-score",
-    publicInput: PublicInputs,
+    publicInput: Field,
     publicOutput: Field,
 
     methods: {
         baseCase: {
-            privateInputs: [],
+            privateInputs: [Field, Field, Field],
 
-            method(x: PublicInputs) {
-                x.index.assertEquals(Field(-3))
+            method(secureHash: Field, answers: Field, userAnswers: Field, index: Field) {
+                index.assertEquals(-3)
+                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]))
 
                 return Field(0)
             },
         },
 
         step: {
-            privateInputs: [SelfProof, Field],
+            privateInputs: [SelfProof, Field, Field, Field, Field, Field, Field],
 
-            method(x: PublicInputs, earlierProof: SelfProof<PublicInputs, Field>, score: Field) {
+            method(secureHash: Field, earlierProof: SelfProof<Field, Field>, answers: Field, userAnswers: Field, index: Field, answer: Field,  userAnswer: Field, score: Field) {
                 earlierProof.verify();
                 
-                earlierProof.publicInput.index.add(3).assertEquals(x.index)
+                earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.sub(3)]))
+                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]))
+
                 earlierProof.publicOutput.assertEquals(score)
-                earlierProof.publicInput.answers.assertEquals(x.answers)
-                earlierProof.publicInput.userAnswers.assertEquals(x.userAnswers)
 
-                const answers = x.answers.toBits(15) // 21835
-                const userAnswers = x.userAnswers.toBits(15) // 13643
+                const bitsOfAnswers = answers.toBits()
+                const bitsOfUserAnswers = userAnswers.toBits()
 
-                const s1 = (answers[2].or(userAnswers[2])).and(answers[2].not().or(userAnswers[2].not()))
-                
-                const equation = s1.equals(false)
+                const equation = (userAnswer.equals(answer).and(answer.equals(0).not())).toField()
 
-                return score.add(Provable.if(equation, Field(1), Field(0)))
+                const confirm = Provable.witness(
+                    Field,
+                    () => {
+                        const i = Number(index)
+                        
+                        const a = Field.fromBits(bitsOfAnswers.slice(i, i + 3))
+                        const ua = Field.fromBits(bitsOfUserAnswers.slice(i, i + 3))
+
+                        return ua.equals(a).and(a.equals(0).not()).toField()
+                    }
+                )
+
+                equation.assertEquals(confirm)
+
+                return Provable.if(Bool.fromFields(equation.toFields()), score.add(1), score)
             },
         },
     },

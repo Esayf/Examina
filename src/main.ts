@@ -1,5 +1,5 @@
-import { Examina, MerkleWitnessClass } from './Examina.js';
-import { CalculateScore, PublicInputs } from './ExaminaRecursion.js'
+import { Examina, MerkleWitnessClass, Controller } from './Examina.js';
+import { CalculateScore } from './ExaminaRecursion.js'
 import {
   Field,
   Mina,
@@ -9,6 +9,7 @@ import {
   Poseidon,
   Reducer,
   MerkleTree,
+  Bool,
 } from 'o1js';
 
 
@@ -51,7 +52,9 @@ await tx.sign([feePayerKey, zkappKey]).send();
 
 console.log('create exam');
 
-const answers = Field(21835n)
+const answers = Field(173n)
+const userAnswers = Field(237n)
+let index = Field(-3)
 const secretKey = Field.random()
 
 console.log("secret key: ", secretKey.toString())
@@ -69,23 +72,23 @@ console.log('action 1');
 const pk = PrivateKey.random()
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.submitAnswers(pk, Field(13643n), new MerkleWitnessClass(merkleMap.getWitness(1n)));
+  zkapp.submitAnswers(pk, Field(237n), new MerkleWitnessClass(merkleMap.getWitness(1n)));
 });
 await tx.prove();
 await tx.sign([feePayerKey]).send();
 
-merkleMap.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(13643n))))
+merkleMap.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n))))
 
 console.log('action 2');
 const pk1 = PrivateKey.random()
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.submitAnswers(pk1, Field(13643n), new MerkleWitnessClass(merkleMap.getWitness(2n)));
+  zkapp.submitAnswers(pk1, Field(237n), new MerkleWitnessClass(merkleMap.getWitness(2n)));
 });
 await tx.prove();
 await tx.sign([feePayerKey]).send();
 
-merkleMap.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(13643n))))
+merkleMap.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(237n))))
 
 console.log('rolling up pending actions..');
 
@@ -94,42 +97,49 @@ console.log('state before: ' + zkapp.usersRoot.get());
 tx = await Mina.transaction(feePayer, () => {
   zkapp.publishAnswers(answers, secretKey);
 });
-await tx.prove();
+await tx.prove()
 await tx.sign([feePayerKey]).send();
 
 console.log('state after rollup: ' + zkapp.usersRoot.get());
 
-console.log("answers:", zkapp.answers.get())
-console.log("isOver:", zkapp.isOver.get())
-console.log("examKey:", zkapp.examSecretKey.get())
+console.log("answers:", zkapp.answers.get().toString())
+console.log("isOver:", zkapp.isOver.get().toString())
+console.log("examKey:", zkapp.examSecretKey.get().toString())
 
-console.log(new MerkleWitnessClass(merkleMap.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(13643n)))))
+console.log("1n user merkle witness calculated root:", new MerkleWitnessClass(merkleMap.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n)))).toString())
 
-let publicInputs = new PublicInputs({
-  userAnswers: Field(13643n),
-  answers: Field(21835n),
-  index: Field(-3),
-})
+const bitsOfAnswers = answers.toBits()
+const bitsOfUserAnswers = userAnswers.toBits()
 
-const proof0 = await CalculateScore.baseCase(publicInputs)
-console.log(proof0.publicInput.index, proof0.publicOutput)
+let secureHash = Poseidon.hash([answers, userAnswers, index])
 
-publicInputs = publicInputs.updateIndex()
+let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index)
+let score = proof.publicOutput
+console.log("recursion score:", score.toString())
 
-const proof1 = await CalculateScore.step(publicInputs, proof0, Field(0))
-console.log(proof1.publicInput, proof1.publicOutput)
+for (let i = 0; i < 3; i++) {
+  index = index.add(3)
+  secureHash = Poseidon.hash([answers, userAnswers, index])
 
-publicInputs = publicInputs.updateIndex()
+  const i = Number(index)
+                        
+  const a = Field.fromBits(bitsOfAnswers.slice(i, i + 3))
+  const ua = Field.fromBits(bitsOfUserAnswers.slice(i, i + 3))
 
-const proof2 = await CalculateScore.step(publicInputs, proof1, Field(1))
-console.log(proof2.publicInput, proof2.publicOutput)
+  proof = await CalculateScore.step(secureHash, proof, answers, userAnswers, index, a, ua, score)
+  score = proof.publicOutput
+  
+  console.log("recursion score:", score.toString())
+}
 
-let score
+const controller = new Controller(proof.publicInput, answers, userAnswers, index)
+
+let result_score = Field(0)
 
 tx = await Mina.transaction(feePayer, () => {
-score = zkapp.checkScore(proof2, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1);
+  result_score = zkapp.checkScore(proof, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1, controller);
 });
 await tx.prove();
 await tx.sign([feePayerKey]).send();
 
-console.log('score: ' +  score);
+console.log('contract score: ' +  result_score.toString());

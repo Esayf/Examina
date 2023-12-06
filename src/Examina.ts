@@ -40,6 +40,25 @@ export class UserAnswers extends Struct({
     }
 }
 
+export class Controller extends Struct({
+    secureHash: Field,
+    answers: Field,
+    userAnswers: Field,
+    index: Field,
+}) {
+    constructor (secureHash: Field, answers: Field, userAnswers: Field, index: Field) {
+        super({secureHash, answers, userAnswers, index})
+        this.secureHash = secureHash
+        this.answers = answers
+        this.userAnswers = userAnswers
+        this.index = index
+    }
+
+    hash() {
+        return Poseidon.hash([this.answers, this.userAnswers, this.index])
+    }
+}
+
 export class Examina extends SmartContract {
     reducer = Reducer({ actionType: UserAnswers });
 
@@ -125,16 +144,21 @@ export class Examina extends SmartContract {
         return hash.equals(hashedExam)
     }
 
-    @method checkScore(proof: CalculateProof, witness: MerkleWitnessClass, privateKey: PrivateKey) {
+    @method checkScore(proof: CalculateProof, witness: MerkleWitnessClass, privateKey: PrivateKey, controller: Controller) {
         const isOver = this.isOver.getAndAssertEquals()
         isOver.assertEquals(Bool(true).toField())
         
         const usersRoot = this.usersRoot.getAndAssertEquals()
         const answers = this.answers.getAndAssertEquals()
 
-        answers.assertEquals(proof.publicInput.answers)
+        const secureHash = controller.secureHash
+        proof.publicInput.assertEquals(secureHash)
+
+        secureHash.assertEquals(controller.hash())
+
+        answers.assertEquals(controller.answers)
         
-        const witnessRoot = witness.calculateRoot(Poseidon.hash(privateKey.toPublicKey().toFields().concat(proof.publicInput.userAnswers)))
+        const witnessRoot = witness.calculateRoot(Poseidon.hash(privateKey.toPublicKey().toFields().concat(controller.userAnswers)))
         usersRoot.assertEquals(witnessRoot)
 
         proof.verify()
