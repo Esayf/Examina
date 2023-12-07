@@ -12,7 +12,6 @@ import {
   Bool,
 } from 'o1js';
 
-
 const merkleMap = new MerkleTree(20)
 
 const doProofs = true;
