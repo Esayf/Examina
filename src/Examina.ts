@@ -137,9 +137,8 @@ export class Examina extends SmartContract {
         this.examSecretKey.set(secretKey)
     }
 
-    @method verifyQuestions(exam: Field) {
+    @method verifyQuestions(hashedExam: Field) {
         const hash = this.hashedQuestions.getAndAssertEquals()
-        const hashedExam = Poseidon.hash(exam.toFields())
         
         return hash.equals(hashedExam)
     }

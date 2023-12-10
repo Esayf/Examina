@@ -1,4 +1,4 @@
-import { Examina } from './Examina';
+import { Examina, MerkleWitnessClass } from './Examina';
 import { Field, Mina, PrivateKey, PublicKey, AccountUpdate, MerkleTree, Poseidon, Bool } from 'o1js';
 
 /*
@@ -53,9 +53,7 @@ describe("Examina", () => {
 
         await txn.prove()
         await txn.sign([deployerKey, zkAppPrivateKey]).send()
-    })
-    
-    it("generates and deploys the `Examina` smart contract (create an exam)", async () => {
+
         const json_questions = {
             "questions": [
                 {
@@ -107,7 +105,9 @@ describe("Examina", () => {
 
         answers = Field.fromBits(answers_in_booleans)
         examKey = Field.random()
-
+    })
+    
+    it("generates and deploys the `Examina` smart contract (create an exam)", async () => {
         const txn = await Mina.transaction(deployerAccount, () => {
             zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot())
         })
@@ -120,6 +120,42 @@ describe("Examina", () => {
         expect(zkAppInstance.isOver.get()).toEqual(Bool(false).toField())
         expect(zkAppInstance.hashedQuestions.get()).toEqual(questions)
         expect(zkAppInstance.usersRoot.get()).toEqual(merkleTree.getRoot())
+    })
+
+    it("submit answers for users and publish answers", async () => {
+        console.log('action 1');
+        const pk = PrivateKey.random()
+
+        let txn = await Mina.transaction(deployerAccount, () => {
+            zkAppInstance.submitAnswers(pk, Field(237n), new MerkleWitnessClass(merkleTree.getWitness(1n))); // 237 => 011 101 101 : 3, 5, 5
+        });
+        await txn.prove();
+        await txn.sign([deployerKey]).send();
+
+        merkleTree.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n))))
+
+        console.log('action 2');
+        const pk1 = PrivateKey.random()
+
+        txn = await Mina.transaction(deployerAccount, () => {
+            zkAppInstance.submitAnswers(pk1, Field(213n), new MerkleWitnessClass(merkleTree.getWitness(2n))); // 213 => 010 101 101 : 3, 5, 5
+        });
+        await txn.prove();
+        await txn.sign([deployerKey]).send();
+
+        merkleTree.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(213n))))
+
+        txn = await Mina.transaction(deployerAccount, () => {
+            zkAppInstance.publishAnswers(answers, examKey);
+        });
+        await txn.prove()
+        await txn.sign([deployerKey]).send();
+
+        expect(zkAppInstance.isOver.get()).toEqual(Bool(true).toField())
+        expect(zkAppInstance.answers.get()).toEqual(answers)
+        expect(zkAppInstance.examSecretKey.get()).toEqual(examKey)
+        expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n)))))
+        expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(2n)).calculateRoot(Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(213n)))))
     })
 })
 
