@@ -110,35 +110,35 @@ console.log("1n user merkle witness calculated root:", new MerkleWitnessClass(me
 const bitsOfAnswers = answers.toBits()
 const bitsOfUserAnswers = userAnswers.toBits()
 
-let secureHash = Poseidon.hash([answers, userAnswers, index])
+let secureHash = Poseidon.hash([answers, userAnswers, index, Field(1)])
 
-let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index)
+let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index, Field(1))
 let score = proof.publicOutput
-console.log("recursion score:", score.toString())
+console.log("recursion score:", score.score.toString())
 
 for (let i = 0; i < 3; i++) {
   index = index.add(3)
-  secureHash = Poseidon.hash([answers, userAnswers, index])
+  secureHash = Poseidon.hash([answers, userAnswers, index, Field(1)])
 
   const i = Number(index)
                         
   const a = Field.fromBits(bitsOfAnswers.slice(i, i + 3))
   const ua = Field.fromBits(bitsOfUserAnswers.slice(i, i + 3))
 
-  proof = await CalculateScore.step(secureHash, proof, answers, userAnswers, index, a, ua, score)
+  proof = await CalculateScore.step(secureHash, proof, answers, userAnswers, index, a, ua, Field(1))
   score = proof.publicOutput
   
-  console.log("recursion score:", score.toString())
+  console.log("recursion score:", score.score.toString())
 }
 
 const controller = new Controller(proof.publicInput, answers, userAnswers, index)
 
-let result_score = Field(0)
+// let result_score = Field(0)
 
-tx = await Mina.transaction(feePayer, () => {
-  result_score = zkapp.checkScore(proof, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1, controller);
-});
-await tx.prove();
-await tx.sign([feePayerKey]).send();
+// tx = await Mina.transaction(feePayer, () => {
+//   result_score = zkapp.checkScore(proof, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1, controller);
+// });
+// await tx.prove();
+// await tx.sign([feePayerKey]).send();
 
-console.log('contract score: ' +  result_score.toString());
+// console.log('contract score: ' +  result_score.toString());
