@@ -45,17 +45,19 @@ export class Controller extends Struct({
     answers: Field,
     userAnswers: Field,
     index: Field,
+    incorrectToCorrectRatio: Field
 }) {
-    constructor (secureHash: Field, answers: Field, userAnswers: Field, index: Field) {
-        super({secureHash, answers, userAnswers, index})
+    constructor (secureHash: Field, answers: Field, userAnswers: Field, index: Field, incorrectToCorrectRatio: Field) {
+        super({secureHash, answers, userAnswers, index, incorrectToCorrectRatio})
         this.secureHash = secureHash
         this.answers = answers
         this.userAnswers = userAnswers
         this.index = index
+        this.incorrectToCorrectRatio = incorrectToCorrectRatio
     }
 
     hash() {
-        return Poseidon.hash([this.answers, this.userAnswers, this.index])
+        return Poseidon.hash([this.answers, this.userAnswers, this.index, this.incorrectToCorrectRatio])
     }
 }
 
@@ -68,6 +70,7 @@ export class Examina extends SmartContract {
     @state(Field) isOver = State<Field>()
     @state(Field) actionState = State<Field>()
     @state(Field) examSecretKey = State<Field>()
+    @state(Field) incorrectToCorrectRatio = State<Field>()
 
     init() {
         super.init()
@@ -81,17 +84,18 @@ export class Examina extends SmartContract {
         answers: Field,
         secretKey: Field,
         hashed_questions: Field,
-        usersInitialRoot: Field
+        usersInitialRoot: Field,
+        incorrectToCorrectRatio: Field
     ) {
         this.answers.set(Poseidon.hash([answers, secretKey]))
         this.hashedQuestions.set(hashed_questions)
         this.usersRoot.set(usersInitialRoot)
         this.examSecretKey.set(Poseidon.hash(secretKey.toFields()))
+        this.incorrectToCorrectRatio.set(incorrectToCorrectRatio)
     }
 
     @method submitAnswers(privateKey: PrivateKey, answers: Field, witness: MerkleWitnessClass) {
         const isOver = this.isOver.getAndAssertEquals()
-
         isOver.assertEquals(Bool(false).toField())
 
         const user = new UserAnswers(privateKey.toPublicKey(), answers, witness)
@@ -149,6 +153,7 @@ export class Examina extends SmartContract {
         
         const usersRoot = this.usersRoot.getAndAssertEquals()
         const answers = this.answers.getAndAssertEquals()
+        const incorrectToCorrectRatio = this.incorrectToCorrectRatio.getAndAssertEquals()
 
         const secureHash = controller.secureHash
         proof.publicInput.assertEquals(secureHash)
@@ -156,6 +161,7 @@ export class Examina extends SmartContract {
         secureHash.assertEquals(controller.hash())
 
         answers.assertEquals(controller.answers)
+        incorrectToCorrectRatio.assertEquals(controller.incorrectToCorrectRatio)
         
         const witnessRoot = witness.calculateRoot(Poseidon.hash(privateKey.toPublicKey().toFields().concat(controller.userAnswers)))
         usersRoot.assertEquals(witnessRoot)

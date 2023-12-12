@@ -17,6 +17,7 @@ let testAccounts: {
 let users: Field[] = []
 let merkleTree: MerkleTree
 let answers: Field
+let incorrectToCorrectRatio: Field
 let examKey: Field
 let questions: Field = Field(0)
 
@@ -104,12 +105,13 @@ describe("Examina", () => {
         }
 
         answers = Field.fromBits(answers_in_booleans)
+        incorrectToCorrectRatio = Field(1)
         examKey = Field.random()
     })
     
     it("generates and deploys the `Examina` smart contract (create an exam)", async () => {
         const txn = await Mina.transaction(deployerAccount, () => {
-            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot())
+            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), incorrectToCorrectRatio)
         })
 
         await txn.prove()

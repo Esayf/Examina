@@ -1,5 +1,5 @@
 import { Examina, MerkleWitnessClass, Controller } from './Examina.js';
-import { CalculateScore } from './ExaminaRecursion.js'
+import { CalculateScore, PublicOutputs } from './ExaminaRecursion.js'
 import {
   Field,
   Mina,
@@ -55,11 +55,12 @@ const answers = Field(173n)
 const userAnswers = Field(237n)
 let index = Field(-3)
 const secretKey = Field.random()
+const incorrectToCorrectRatio = Field(1)
 
 console.log("secret key: ", secretKey.toString())
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot)
+  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot, incorrectToCorrectRatio)
 });
 await tx.prove()
 await tx.sign([feePayerKey, zkappKey]).send();
@@ -110,7 +111,7 @@ console.log("1n user merkle witness calculated root:", new MerkleWitnessClass(me
 const bitsOfAnswers = answers.toBits()
 const bitsOfUserAnswers = userAnswers.toBits()
 
-let secureHash = Poseidon.hash([answers, userAnswers, index, Field(1)])
+let secureHash = Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio])
 
 let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index, Field(1))
 let score = proof.publicOutput
@@ -125,20 +126,20 @@ for (let i = 0; i < 3; i++) {
   const a = Field.fromBits(bitsOfAnswers.slice(i, i + 3))
   const ua = Field.fromBits(bitsOfUserAnswers.slice(i, i + 3))
 
-  proof = await CalculateScore.step(secureHash, proof, answers, userAnswers, index, a, ua, Field(1))
+  proof = await CalculateScore.step(secureHash, proof, answers, userAnswers, index, a, ua, incorrectToCorrectRatio)
   score = proof.publicOutput
   
   console.log("recursion score:", score.score.toString())
 }
 
-const controller = new Controller(proof.publicInput, answers, userAnswers, index)
+const controller = new Controller(proof.publicInput, answers, userAnswers, index, incorrectToCorrectRatio)
 
-// let result_score = Field(0)
+let result_score: PublicOutputs = new PublicOutputs(Field(0), Field(0))
 
-// tx = await Mina.transaction(feePayer, () => {
-//   result_score = zkapp.checkScore(proof, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1, controller);
-// });
-// await tx.prove();
-// await tx.sign([feePayerKey]).send();
+tx = await Mina.transaction(feePayer, () => {
+  result_score = zkapp.checkScore(proof, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1, controller);
+});
+await tx.prove();
+await tx.sign([feePayerKey]).send();
 
-// console.log('contract score: ' +  result_score.toString());
+console.log('contract score: ' +  result_score.score);
