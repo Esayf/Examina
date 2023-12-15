@@ -11,6 +11,7 @@ import {
   MerkleTree,
   Bool,
 } from 'o1js';
+import { UInt240 } from './int.js';
 
 const merkleMap = new MerkleTree(20)
 
@@ -51,9 +52,9 @@ await tx.sign([feePayerKey, zkappKey]).send();
 
 console.log('create exam');
 
-const answers = Field(173n)
-const userAnswers = Field(237n)
-let index = Field(-3)
+const answers = Field(535n)
+const userAnswers = Field(235n)
+let index = Field(1).div(10)
 const secretKey = Field.random()
 const incorrectToCorrectRatio = Field(1)
 
@@ -65,6 +66,10 @@ tx = await Mina.transaction(feePayer, () => {
 await tx.prove()
 await tx.sign([feePayerKey, zkappKey]).send();
 
+console.log("answers:", zkapp.answers.get().toString())
+console.log("isOver:", zkapp.informations.get().toString())
+console.log("examKey:", zkapp.examSecretKey.get().toString())
+
 console.log('applying actions..');
 
 console.log('action 1');
@@ -72,23 +77,23 @@ console.log('action 1');
 const pk = PrivateKey.random()
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.submitAnswers(pk, Field(237n), new MerkleWitnessClass(merkleMap.getWitness(1n)));
+  zkapp.submitAnswers(pk, Field(235n), new MerkleWitnessClass(merkleMap.getWitness(1n)));
 });
 await tx.prove();
 await tx.sign([feePayerKey]).send();
 
-merkleMap.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n))))
+merkleMap.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(235n))))
 
 console.log('action 2');
 const pk1 = PrivateKey.random()
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.submitAnswers(pk1, Field(237n), new MerkleWitnessClass(merkleMap.getWitness(2n)));
+  zkapp.submitAnswers(pk1, Field(235n), new MerkleWitnessClass(merkleMap.getWitness(2n)));
 });
 await tx.prove();
 await tx.sign([feePayerKey]).send();
 
-merkleMap.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(237n))))
+merkleMap.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(235n))))
 
 console.log('rolling up pending actions..');
 
@@ -102,39 +107,27 @@ await tx.sign([feePayerKey]).send();
 
 console.log('state after rollup: ' + zkapp.usersRoot.get());
 
-console.log("answers:", zkapp.answers.get().toString())
-console.log("isOver:", zkapp.isOver.get().toString())
-console.log("examKey:", zkapp.examSecretKey.get().toString())
-
-console.log("1n user merkle witness calculated root:", new MerkleWitnessClass(merkleMap.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n)))).toString())
-
-const bitsOfAnswers = answers.toBits()
-const bitsOfUserAnswers = userAnswers.toBits()
+console.log("1n user merkle witness calculated root:", new MerkleWitnessClass(merkleMap.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(235n)))).toString())
 
 let secureHash = Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio])
 
 let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index, Field(1))
-let score = proof.publicOutput
-console.log("recursion score:", score.score.toString())
+let publicOutputs = proof.publicOutput
+console.log("recursion score:", publicOutputs.corrects.toString())
 
 for (let i = 0; i < 3; i++) {
-  index = index.add(3)
+  index = index.mul(10)
   secureHash = Poseidon.hash([answers, userAnswers, index, Field(1)])
 
-  const i = Number(index)
-                        
-  const a = Field.fromBits(bitsOfAnswers.slice(i, i + 3))
-  const ua = Field.fromBits(bitsOfUserAnswers.slice(i, i + 3))
-
-  proof = await CalculateScore.step(secureHash, proof, answers, userAnswers, index, a, ua, incorrectToCorrectRatio)
-  score = proof.publicOutput
+  proof = await CalculateScore.calculate(secureHash, proof, answers, userAnswers, index, incorrectToCorrectRatio)
+  publicOutputs = proof.publicOutput
   
-  console.log("recursion score:", score.score.toString())
+  console.log("recursion score:", publicOutputs.corrects.toString())
 }
 
 const controller = new Controller(proof.publicInput, answers, userAnswers, index, incorrectToCorrectRatio)
 
-let result_score: PublicOutputs = new PublicOutputs(Field(0), Field(0))
+let result_score: UInt240 = UInt240.from(0)
 
 tx = await Mina.transaction(feePayer, () => {
   result_score = zkapp.checkScore(proof, new MerkleWitnessClass(merkleMap.getWitness(2n)), pk1, controller);
@@ -142,4 +135,4 @@ tx = await Mina.transaction(feePayer, () => {
 await tx.prove();
 await tx.sign([feePayerKey]).send();
 
-console.log('contract score: ' +  result_score.score);
+console.log('contract score: ' +  result_score);

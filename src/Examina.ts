@@ -1,5 +1,4 @@
 import {
-    Bool,
     Field,
     Poseidon,
     SmartContract,
@@ -11,8 +10,10 @@ import {
     Struct,
     PublicKey,
     MerkleWitness,
-    ZkProgram
+    ZkProgram,
+    Gadgets
 } from 'o1js';
+import { UInt240 } from "./int.js"
 import {
     CalculateScore
 } from './ExaminaRecursion.js'
@@ -61,21 +62,27 @@ export class Controller extends Struct({
     }
 }
 
+const SHIFT_ISOVER = 0
+const SHIFT_RATIO = 1
+const MASK_ISOVER = Field(1)
+const MASK_RATIO = Field(7)
+const FINISH = Field(1)
+const CONTINUES = Field(0)
+
 export class Examina extends SmartContract {
     reducer = Reducer({ actionType: UserAnswers });
 
     @state(Field) answers = State<Field>()
     @state(Field) hashedQuestions = State<Field>()
     @state(Field) usersRoot = State<Field>()
-    @state(Field) isOver = State<Field>()
     @state(Field) actionState = State<Field>()
     @state(Field) examSecretKey = State<Field>()
-    @state(Field) incorrectToCorrectRatio = State<Field>()
+    @state(Field) informations = State<Field>()
 
     init() {
         super.init()
         this.actionState.set(Reducer.initialActionState)
-        this.isOver.set(Bool(false).toField())
+        this.informations.set(CONTINUES)
 
         this.requireSignature()
     }
@@ -91,12 +98,48 @@ export class Examina extends SmartContract {
         this.hashedQuestions.set(hashed_questions)
         this.usersRoot.set(usersInitialRoot)
         this.examSecretKey.set(Poseidon.hash(secretKey.toFields()))
-        this.incorrectToCorrectRatio.set(incorrectToCorrectRatio)
+
+        const informations = this.informations.getAndAssertEquals()
+        const shifted = Gadgets.leftShift(incorrectToCorrectRatio, SHIFT_RATIO)
+
+        const not_ratio = Gadgets.not(shifted, 128)
+        const not_informations = Gadgets.not(informations, 128)
+        const set = Gadgets.and(not_informations, not_ratio, 128)
+
+        this.informations.set(Gadgets.not(set, 128))
+    }
+
+    @method checkIsOver(check: Field) {
+        const informations = this.informations.getAndAssertEquals()
+
+        const shifted = Gadgets.rightShift(informations, SHIFT_ISOVER)
+        const isOver = Gadgets.and(shifted, MASK_ISOVER, 1)
+
+        isOver.assertEquals(check)
+    }
+
+    @method setIsOver(value: Field) {
+        const informations = this.informations.getAndAssertEquals()
+
+        const not_informations = Gadgets.not(informations, 128)
+        const not_value = Gadgets.not(value, 128)
+
+        const process = Gadgets.and(not_informations, not_value, 128)
+
+        this.informations.set(Gadgets.not(process, 128))
+    }
+
+    @method getRatio(): Field {
+        const informations = this.informations.getAndAssertEquals()
+
+        const shifted = Gadgets.rightShift(informations, SHIFT_RATIO)
+        const ratio = Gadgets.and(shifted, MASK_RATIO, 3)
+
+        return ratio
     }
 
     @method submitAnswers(privateKey: PrivateKey, answers: Field, witness: MerkleWitnessClass) {
-        const isOver = this.isOver.getAndAssertEquals()
-        isOver.assertEquals(Bool(false).toField())
+        this.checkIsOver(CONTINUES)
 
         const user = new UserAnswers(privateKey.toPublicKey(), answers, witness)
 
@@ -104,9 +147,7 @@ export class Examina extends SmartContract {
     }
 
     @method publishAnswers(answers: Field, secretKey: Field) {
-        const isOver = this.isOver.getAndAssertEquals()
-
-        isOver.assertEquals(Bool(false).toField())
+        this.checkIsOver(CONTINUES)
 
         const initalAnswers = this.answers.getAndAssertEquals()
 
@@ -116,7 +157,7 @@ export class Examina extends SmartContract {
         const usersRoot = this.usersRoot.getAndAssertEquals()
         const actionState = this.actionState.getAndAssertEquals()
 
-        this.isOver.set(Bool(true).toField())
+        this.setIsOver(Field(1))
 
         let pendingActions = this.reducer.getActions({
             fromActionState: actionState,
@@ -148,12 +189,13 @@ export class Examina extends SmartContract {
     }
 
     @method checkScore(proof: CalculateProof, witness: MerkleWitnessClass, privateKey: PrivateKey, controller: Controller) {
-        const isOver = this.isOver.getAndAssertEquals()
-        isOver.assertEquals(Bool(true).toField())
+        this.checkIsOver(FINISH)
         
+        proof.verify()
+
         const usersRoot = this.usersRoot.getAndAssertEquals()
         const answers = this.answers.getAndAssertEquals()
-        const incorrectToCorrectRatio = this.incorrectToCorrectRatio.getAndAssertEquals()
+        const incorrectToCorrectRatio = this.getRatio()
 
         const secureHash = controller.secureHash
         proof.publicInput.assertEquals(secureHash)
@@ -166,9 +208,12 @@ export class Examina extends SmartContract {
         const witnessRoot = witness.calculateRoot(Poseidon.hash(privateKey.toPublicKey().toFields().concat(controller.userAnswers)))
         usersRoot.assertEquals(witnessRoot)
 
-        proof.verify()
+        const incorrects = proof.publicOutput.incorrects
+        const corrects = proof.publicOutput.corrects
 
-        const score = proof.publicOutput
+        const quotient = incorrects.div(UInt240.from(incorrectToCorrectRatio))
+
+        const score = corrects.sub(quotient)
 
         return score
     }

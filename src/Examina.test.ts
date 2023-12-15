@@ -119,7 +119,7 @@ describe("Examina", () => {
 
         expect(zkAppInstance.answers.get()).toEqual(Poseidon.hash([answers, examKey]))
         expect(zkAppInstance.examSecretKey.get()).toEqual(Poseidon.hash(examKey.toFields()))
-        expect(zkAppInstance.isOver.get()).toEqual(Bool(false).toField())
+        // expect(zkAppInstance.isOver.get()).toEqual(Bool(false).toField())
         expect(zkAppInstance.hashedQuestions.get()).toEqual(questions)
         expect(zkAppInstance.usersRoot.get()).toEqual(merkleTree.getRoot())
     })
@@ -153,7 +153,7 @@ describe("Examina", () => {
         await txn.prove()
         await txn.sign([deployerKey]).send();
 
-        expect(zkAppInstance.isOver.get()).toEqual(Bool(true).toField())
+        // expect(zkAppInstance.isOver.get()).toEqual(Bool(true).toField())
         expect(zkAppInstance.answers.get()).toEqual(answers)
         expect(zkAppInstance.examSecretKey.get()).toEqual(examKey)
         expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n)))))
