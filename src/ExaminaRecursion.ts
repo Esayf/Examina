@@ -1,6 +1,15 @@
 import { Field, ZkProgram, SelfProof, Provable, Struct, Poseidon, Int64 } from 'o1js';
 import { UInt240 } from "./int.js"
 
+const 
+    INDEX_MULTIPLIER = 10,
+    INITIAL_CORRECTS = 0,
+    INITIAL_INCORRECTS = 0,
+    BLANK_VALUE = 0,
+    INCREMENT = 1,
+    ANSWER_DIVISOR = UInt240.from(10)
+;
+
 export class PublicOutputs extends Struct({
     corrects: UInt240,
     incorrects: UInt240
@@ -11,16 +20,16 @@ export class PublicOutputs extends Struct({
             incorrects
         })
 
-        this.corrects = corrects
-        this.incorrects = incorrects
+        this.corrects = corrects;
+        this.incorrects = incorrects;
     }
     
     correct() {
-        return new PublicOutputs(this.corrects.add(1), this.incorrects)
+        return new PublicOutputs(this.corrects.add(INCREMENT), this.incorrects);
     }
 
     incorrect() {
-        return new PublicOutputs(this.corrects, this.incorrects.add(1))
+        return new PublicOutputs(this.corrects, this.incorrects.add(INCREMENT));
     }
 }
 
@@ -34,10 +43,10 @@ export const CalculateScore = ZkProgram({
             privateInputs: [Field, Field, Field, Field],
 
             method(secureHash: Field, answers: Field, userAnswers: Field, index: Field, incorrectToCorrectRatio: Field) {
-                index.mul(10).assertEquals(1)
-                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio]))
+                index.mul(INDEX_MULTIPLIER).assertEquals(1);
+                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio]));
 
-                return new PublicOutputs(UInt240.from(0), UInt240.from(0))
+                return new PublicOutputs(UInt240.from(INITIAL_CORRECTS), UInt240.from(INITIAL_INCORRECTS));
             },
         },
 
@@ -54,20 +63,20 @@ export const CalculateScore = ZkProgram({
             ) { 
                 earlierProof.verify();
                 
-                earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.div(10), incorrectToCorrectRatio]))
-                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio]))
+                earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.div(INDEX_MULTIPLIER), incorrectToCorrectRatio]));
+                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio]));
 
-                const publicOutputs = earlierProof.publicOutput
+                const publicOutputs = earlierProof.publicOutput;
 
-                const i = UInt240.from(index)
+                const i = UInt240.from(index);
 
-                const a = UInt240.from(answers)
-                const ua = UInt240.from(userAnswers)
+                const a = UInt240.from(answers);
+                const ua = UInt240.from(userAnswers);
 
-                const remainderOfAnswers = a.div(i).mod(10).toField()
-                const remainderOfUserAnswers = ua.div(i).mod(10).toField()
+                const remainderOfAnswers = a.div(i).mod(ANSWER_DIVISOR).toField();
+                const remainderOfUserAnswers = ua.div(i).mod(ANSWER_DIVISOR).toField();
 
-                const equation = remainderOfAnswers.equals(0).not().and(remainderOfAnswers.equals(remainderOfUserAnswers))
+                const equation = remainderOfAnswers.equals(BLANK_VALUE).not().and(remainderOfAnswers.equals(remainderOfUserAnswers));
 
                 const { corrects, incorrects } = Provable.if (
                     equation,
@@ -76,7 +85,7 @@ export const CalculateScore = ZkProgram({
                     publicOutputs.incorrect()
                 )
 
-                return new PublicOutputs(corrects, incorrects)
+                return new PublicOutputs(corrects, incorrects);
             },
         },
     },
