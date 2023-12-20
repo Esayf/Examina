@@ -1,5 +1,5 @@
 import { Examina, MerkleWitnessClass } from './Examina';
-import { Field, Mina, PrivateKey, PublicKey, AccountUpdate, MerkleTree, Poseidon, Bool } from 'o1js';
+import { Field, Mina, PrivateKey, PublicKey, AccountUpdate, MerkleTree, Poseidon, Bool, UInt64 } from 'o1js';
 
 /*
  * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
@@ -17,7 +17,7 @@ let testAccounts: {
 let users: Field[] = []
 let merkleTree: MerkleTree
 let answers: Field
-let incorrectToCorrectRatio: Field
+let informations: Field
 let examKey: Field
 let questions: Field = Field(0)
 
@@ -105,13 +105,13 @@ describe("Examina", () => {
         }
 
         answers = Field.fromBits(answers_in_booleans)
-        incorrectToCorrectRatio = Field(1)
+        informations = Field(57601n)
         examKey = Field.random()
     })
     
     it("generates and deploys the `Examina` smart contract (create an exam)", async () => {
         const txn = await Mina.transaction(deployerAccount, () => {
-            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), incorrectToCorrectRatio)
+            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), informations, UInt64.from(Date.now()))
         })
 
         await txn.prove()

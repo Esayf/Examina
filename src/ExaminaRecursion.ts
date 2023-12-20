@@ -40,31 +40,30 @@ export const CalculateScore = ZkProgram({
 
     methods: {
         baseCase: {
-            privateInputs: [Field, Field, Field, Field],
+            privateInputs: [Field, Field, Field],
 
-            method(secureHash: Field, answers: Field, userAnswers: Field, index: Field, incorrectToCorrectRatio: Field) {
+            method(secureHash: Field, answers: Field, userAnswers: Field, index: Field) {
                 index.mul(INDEX_MULTIPLIER).assertEquals(1);
-                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio]));
+                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]));
 
                 return new PublicOutputs(UInt240.from(INITIAL_CORRECTS), UInt240.from(INITIAL_INCORRECTS));
             },
         },
 
         calculate: {
-            privateInputs: [SelfProof, Field, Field, Field, Field],
+            privateInputs: [SelfProof, Field, Field, Field],
 
             method (
                 secureHash: Field,
                 earlierProof: SelfProof<Field, PublicOutputs>,
                 answers: Field,
                 userAnswers: Field,
-                index: Field,
-                incorrectToCorrectRatio: Field
+                index: Field
             ) { 
                 earlierProof.verify();
                 
-                earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.div(INDEX_MULTIPLIER), incorrectToCorrectRatio]));
-                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio]));
+                earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.div(INDEX_MULTIPLIER)]));
+                secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]));
 
                 const publicOutputs = earlierProof.publicOutput;
 

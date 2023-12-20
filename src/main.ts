@@ -10,6 +10,7 @@ import {
   Reducer,
   MerkleTree,
   Bool,
+  UInt64,
 } from 'o1js';
 import { UInt240 } from './int.js';
 
@@ -56,19 +57,19 @@ const answers = Field(535n)
 const userAnswers = Field(235n)
 let index = Field(1).div(10)
 const secretKey = Field.random()
-const incorrectToCorrectRatio = Field(1)
+const informations = Field(1600001n)
 
 console.log("secret key: ", secretKey.toString())
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot, incorrectToCorrectRatio)
+  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot, informations, UInt64.from(Date.now()))
 });
 await tx.prove()
 await tx.sign([feePayerKey, zkappKey]).send();
 
 console.log("answers:", zkapp.answers.get().toString())
 console.log("isOver:", zkapp.informations.get().toString())
-console.log("examKey:", zkapp.examSecretKey.get().toString())
+console.log("examKey:", zkapp.startDate.get().toString())
 
 console.log('applying actions..');
 
@@ -109,9 +110,9 @@ console.log('state after rollup: ' + zkapp.usersRoot.get());
 
 console.log("1n user merkle witness calculated root:", new MerkleWitnessClass(merkleMap.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(235n)))).toString())
 
-let secureHash = Poseidon.hash([answers, userAnswers, index, incorrectToCorrectRatio])
+let secureHash = Poseidon.hash([answers, userAnswers, index])
 
-let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index, Field(1))
+let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index)
 let publicOutputs = proof.publicOutput
 console.log("recursion score:", publicOutputs.corrects.toString())
 
@@ -119,13 +120,13 @@ for (let i = 0; i < 3; i++) {
   index = index.mul(10)
   secureHash = Poseidon.hash([answers, userAnswers, index, Field(1)])
 
-  proof = await CalculateScore.calculate(secureHash, proof, answers, userAnswers, index, incorrectToCorrectRatio)
+  proof = await CalculateScore.calculate(secureHash, proof, answers, userAnswers, index)
   publicOutputs = proof.publicOutput
   
   console.log("recursion score:", publicOutputs.corrects.toString())
 }
 
-const controller = new Controller(proof.publicInput, answers, userAnswers, index, incorrectToCorrectRatio)
+const controller = new Controller(proof.publicInput, answers, userAnswers, index)
 
 let result_score: UInt240 = UInt240.from(0)
 
