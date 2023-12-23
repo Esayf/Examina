@@ -12,7 +12,8 @@ import {
     MerkleWitness,
     ZkProgram,
     Gadgets,
-    UInt64
+    UInt64,
+    Provable,
 } from 'o1js';
 import { UInt240 } from "./int.js";
 import {
@@ -62,11 +63,13 @@ export class Controller extends Struct({
 }
 
 const 
-    SHIFT_RATIO = 0,
-    SHIFT_DURATIONS = 4,
+    SHIFT_RATIO = 1,
+    SHIFT_DURATIONS = 16,
+    SHIFT_STARTDATE = 536870912,
     MASK_RATIO = Field(15),
     MASK_DURATIONS = Field(33554431n),
-    NUM_BITS = 64
+    MASK_STARTDATE = Field(18446744073709551615n),
+    NUM_BITS = 240
 ;
 
 export class Examina extends SmartContract {
@@ -78,7 +81,6 @@ export class Examina extends SmartContract {
     @state(Field) actionState = State<Field>();
     @state(Field) examSecretKey = State<Field>();
     @state(Field) informations = State<Field>();
-    @state(UInt64) startDate = State<UInt64>();
 
     init() {
         super.init();
@@ -93,55 +95,65 @@ export class Examina extends SmartContract {
         hashed_questions: Field,
         usersInitialRoot: Field,
         informations: Field,
-        startDate: UInt64,
     ) {
         this.answers.set(Poseidon.hash([answers, secretKey]));
         this.hashedQuestions.set(hashed_questions);
         this.usersRoot.set(usersInitialRoot);
         this.examSecretKey.set(Poseidon.hash(secretKey.toFields()));
 
-        this.informations.set(informations);
-        this.startDate.set(startDate)
-    }
-
-    @method checkIsOver() {
-        const informations = this.informations.getAndAssertEquals();
-
-        const startDate = this.startDate.getAndAssertEquals()
-
-        const shifted = Gadgets.rightShift(informations, SHIFT_DURATIONS);
-        const durations = Gadgets.and(shifted, MASK_DURATIONS, 32);
-
-        const endDate = startDate.add(UInt64.from(durations))
-
-        const timestamps = this.network.timestamp.getAndAssertEquals()
-
-        timestamps.assertGreaterThanOrEqual(endDate)
+        this.informations.set(informations); // 4 bit => ratio, 25 bit => durations, 64 bit => startDate
     }
 
     @method getRatio(): Field {
-        const informations = this.informations.getAndAssertEquals();
+        const informations = this.informations.getAndRequireEquals();
+        const convertedInformations = UInt240.from(informations);
 
-        const shifted = Gadgets.rightShift(informations, SHIFT_RATIO);
-        const ratio = Gadgets.and(shifted, MASK_RATIO, 3);
+        const shifted = convertedInformations.div(SHIFT_RATIO).toField();
+        const ratio = Gadgets.and(shifted, MASK_RATIO, NUM_BITS);
 
         return ratio;
     }
 
+    @method getDurations(): Field {
+        const informations = this.informations.getAndRequireEquals();
+        const convertedInformations = UInt240.from(informations);
+
+        const shifted = convertedInformations.div(SHIFT_DURATIONS).toField();
+        const durations = Gadgets.and(shifted, MASK_DURATIONS, NUM_BITS);
+
+        return durations.mul(1000);
+    }
+
+    @method getStartDate(): Field {
+        const informations = this.informations.getAndRequireEquals();
+        const convertedInformations = UInt240.from(informations);
+
+        const shifted = convertedInformations.div(SHIFT_STARTDATE).toField();
+        const startDate = Gadgets.and(shifted, MASK_STARTDATE, NUM_BITS);
+
+        return startDate;
+    }
+
+    @method checkIsOver() {
+        const durations = UInt64.from(this.getDurations())
+        const startDate = UInt64.from(this.getStartDate())
+        const endDate = startDate.add(durations)
+
+        const timestamps = this.network.timestamp.getAndRequireEquals()
+
+        timestamps.assertGreaterThanOrEqual(endDate)
+    }
+
+    @method checkIsContinue() {
+        const durations = UInt64.from(this.getDurations())
+        const startDate = UInt64.from(this.getStartDate())
+        const endDate = startDate.add(durations)
+
+        this.network.timestamp.requireBetween(startDate, endDate)
+    }
+
     @method submitAnswers(privateKey: PrivateKey, answers: Field, witness: MerkleWitnessClass) {
-        const informations = this.informations.getAndAssertEquals();
-
-        const startDate = this.startDate.getAndAssertEquals();
-
-        const infos = informations.toBits();
-        
-        const durations = MASK_DURATIONS.toBits(25).map((x, i) => {
-            return x.and(infos[i + 4]);
-        });
-
-        const endDate = startDate.add(UInt64.from(Field.fromBits(durations)));
-
-        this.network.timestamp.assertBetween(startDate, endDate)
+        this.checkIsContinue()
 
         const user = new UserAnswers(privateKey.toPublicKey(), answers, witness);
 
@@ -151,13 +163,13 @@ export class Examina extends SmartContract {
     @method publishAnswers(answers: Field, secretKey: Field) {
         this.checkIsOver();
 
-        const initalAnswers = this.answers.getAndAssertEquals();
+        const initalAnswers = this.answers.getAndRequireEquals();
 
         const hashedAnswers = Poseidon.hash([answers, secretKey]);
         initalAnswers.assertEquals(hashedAnswers);
 
-        const usersRoot = this.usersRoot.getAndAssertEquals();
-        const actionState = this.actionState.getAndAssertEquals();
+        const usersRoot = this.usersRoot.getAndRequireEquals();
+        const actionState = this.actionState.getAndRequireEquals();
 
         let pendingActions = this.reducer.getActions({
             fromActionState: actionState,
@@ -183,7 +195,7 @@ export class Examina extends SmartContract {
     }
 
     @method verifyQuestions(hashedExam: Field) {
-        const hash = this.hashedQuestions.getAndAssertEquals();
+        const hash = this.hashedQuestions.getAndRequireEquals();
         
         return hash.equals(hashedExam);
     }
@@ -193,8 +205,8 @@ export class Examina extends SmartContract {
         
         proof.verify();
 
-        const usersRoot = this.usersRoot.getAndAssertEquals();
-        const answers = this.answers.getAndAssertEquals();
+        const usersRoot = this.usersRoot.getAndRequireEquals();
+        const answers = this.answers.getAndRequireEquals();
         const incorrectToCorrectRatio = this.getRatio();
 
         const secureHash = controller.secureHash;

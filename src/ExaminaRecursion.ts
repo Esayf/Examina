@@ -7,7 +7,7 @@ const
     INITIAL_INCORRECTS = 0,
     BLANK_VALUE = 0,
     INCREMENT = 1,
-    ANSWER_DIVISOR = UInt240.from(10)
+    ANSWER_DIVISOR = UInt240.from(10n)
 ;
 
 export class PublicOutputs extends Struct({

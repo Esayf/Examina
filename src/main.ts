@@ -57,19 +57,19 @@ const answers = Field(535n)
 const userAnswers = Field(235n)
 let index = Field(1).div(10)
 const secretKey = Field.random()
-const informations = Field(1600001n)
+// 000000000000000000000001100011001001011000111010110110001101101100000000000000000111110100001
+const informations = Field(914466982034803789729n)
 
 console.log("secret key: ", secretKey.toString())
 
 tx = await Mina.transaction(feePayer, () => {
-  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot, informations, UInt64.from(Date.now()))
+  zkapp.initState(answers, secretKey, Field(12345678910), initialRoot, informations)
 });
 await tx.prove()
 await tx.sign([feePayerKey, zkappKey]).send();
 
 console.log("answers:", zkapp.answers.get().toString())
 console.log("isOver:", zkapp.informations.get().toString())
-console.log("examKey:", zkapp.startDate.get().toString())
 
 console.log('applying actions..');
 
@@ -118,7 +118,7 @@ console.log("recursion score:", publicOutputs.corrects.toString())
 
 for (let i = 0; i < 3; i++) {
   index = index.mul(10)
-  secureHash = Poseidon.hash([answers, userAnswers, index, Field(1)])
+  secureHash = Poseidon.hash([answers, userAnswers, index])
 
   proof = await CalculateScore.calculate(secureHash, proof, answers, userAnswers, index)
   publicOutputs = proof.publicOutput

@@ -111,7 +111,7 @@ describe("Examina", () => {
     
     it("generates and deploys the `Examina` smart contract (create an exam)", async () => {
         const txn = await Mina.transaction(deployerAccount, () => {
-            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), informations, UInt64.from(Date.now()))
+            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), informations)
         })
 
         await txn.prove()
