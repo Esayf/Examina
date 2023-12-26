@@ -1,5 +1,7 @@
-import { Examina, MerkleWitnessClass } from './Examina';
+import { Controller, Examina, MerkleWitnessClass } from './Examina';
 import { Field, Mina, PrivateKey, PublicKey, AccountUpdate, MerkleTree, Poseidon, Bool, UInt64 } from 'o1js';
+import { CalculateScore } from './ExaminaRecursion';
+import { UInt240 } from './int';
 
 /*
  * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
@@ -20,6 +22,11 @@ let answers: Field
 let informations: Field
 let examKey: Field
 let questions: Field = Field(0)
+const userAnswers = Field(235n)
+let index = Field(1).div(10)
+
+let pk: PrivateKey
+let pk1: PrivateKey
 
 function createLocalBlockchain() {
     const Local = Mina.LocalBlockchain({ proofsEnabled: proofsEnabled });
@@ -126,7 +133,7 @@ describe("Examina", () => {
 
     it("submit answers for users and publish answers", async () => {
         console.log('action 1');
-        const pk = PrivateKey.random()
+        pk = PrivateKey.random()
 
         let txn = await Mina.transaction(deployerAccount, () => {
             zkAppInstance.submitAnswers(pk, Field(237n), new MerkleWitnessClass(merkleTree.getWitness(1n))); // 237 => 011 101 101 : 3, 5, 5
@@ -137,7 +144,7 @@ describe("Examina", () => {
         merkleTree.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n))))
 
         console.log('action 2');
-        const pk1 = PrivateKey.random()
+        pk1 = PrivateKey.random()
 
         txn = await Mina.transaction(deployerAccount, () => {
             zkAppInstance.submitAnswers(pk1, Field(213n), new MerkleWitnessClass(merkleTree.getWitness(2n))); // 213 => 010 101 101 : 3, 5, 5
@@ -158,6 +165,38 @@ describe("Examina", () => {
         expect(zkAppInstance.examSecretKey.get()).toEqual(examKey)
         expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n)))))
         expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(2n)).calculateRoot(Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(213n)))))
+    })
+
+    it("calculate score", async () => {
+        let secureHash = Poseidon.hash([answers, userAnswers, index])
+
+        let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index)
+        let publicOutputs = proof.publicOutput
+        console.log("recursion score:", publicOutputs.corrects.toString())
+
+        for (let i = 0; i < 3; i++) {
+            index = index.mul(10)
+            secureHash = Poseidon.hash([answers, userAnswers, index])
+
+            proof = await CalculateScore.calculate(secureHash, proof, answers, userAnswers, index)
+            publicOutputs = proof.publicOutput
+            
+            console.log("recursion score:", publicOutputs.corrects.toString())
+        }
+
+        const controller = new Controller(proof.publicInput, answers, userAnswers, index)
+
+        let result_score: UInt240 = UInt240.from(0)
+
+        let txn = await Mina.transaction(deployerAccount, () => {
+            result_score = zkAppInstance.checkScore(proof, new MerkleWitnessClass(merkleTree.getWitness(2n)), pk1, controller);
+        });
+        await txn.prove();
+        await txn.sign([deployerKey]).send();
+        
+        expect(publicOutputs.corrects).toEqual(UInt240.from(2))
+        expect(publicOutputs.incorrects).toEqual(UInt240.from(1))
+        expect(result_score).toEqual(UInt240.from(1))
     })
 })
 
