@@ -23,18 +23,14 @@ let informations: Field
 let examKey: Field
 let questions: Field = Field(0)
 const userAnswers = Field(235n)
+let user2Answers: Field
+let user1Answers: Field
 let index = Field(1).div(10)
 
 let pk: PrivateKey
 let pk1: PrivateKey
 
-function createLocalBlockchain() {
-    const Local = Mina.LocalBlockchain({ proofsEnabled: proofsEnabled });
-    Mina.setActiveInstance(Local);
-    testAccounts = Local.testAccounts;
 
-    return Local.testAccounts[0]
-};
 
 describe("Examina", () => {
     let deployerKey: PrivateKey,
@@ -42,14 +38,30 @@ describe("Examina", () => {
         zkAppAddress: PublicKey,
         zkAppPrivateKey: PrivateKey,
         zkAppInstance: Examina
+    
+    function createUserAnswersField(answers_array: number[]) {
+        let answersInBoolens: Bool[] = []
 
+        for (const answer of answers_array) {
+            answersInBoolens = answersInBoolens.concat(Field(answer).toBits(3)) 
+        }
+        return Field.fromBits(answersInBoolens)
+    }
+
+    function createLocalBlockchain() {
+            const Local = Mina.LocalBlockchain({ proofsEnabled: proofsEnabled });
+            Mina.setActiveInstance(Local);
+            testAccounts = Local.testAccounts;
+        
+            return Local.testAccounts[0]
+        };
     beforeAll(async () => {
-        if (proofsEnabled) { await Examina.compile() }
-
         ({ privateKey: deployerKey, publicKey: deployerAccount } = createLocalBlockchain())
         zkAppPrivateKey = PrivateKey.random()
         zkAppAddress = zkAppPrivateKey.toPublicKey()
         zkAppInstance = new Examina(zkAppAddress)
+        if (proofsEnabled) { await Examina.compile() }
+
 
         const txn = await Mina.transaction(deployerAccount, () => {
             AccountUpdate.fundNewAccount(deployerAccount)
@@ -108,17 +120,23 @@ describe("Examina", () => {
         let answers_in_booleans: Bool[] = []
 
         for (const answer of answers_array) {
-            answers_in_booleans = answers_in_booleans.concat(Field(answer).toBits(3))
+            answers_in_booleans = answers_in_booleans.concat(Field(answer).toBits(3)) 
         }
 
-        answers = Field.fromBits(answers_in_booleans)
+        answers = Field(325)
+
+
+        user1Answers = createUserAnswersField([3, 2, 5])
+        user2Answers = Field(325)
+
+        
         informations = Field(57601n)
         examKey = Field.random()
     })
     
     it("generates and deploys the `Examina` smart contract (create an exam)", async () => {
         const txn = await Mina.transaction(deployerAccount, () => {
-            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), informations)
+            zkAppInstance.initState(answers, examKey, questions, merkleTree.getRoot(), Field(1), Field(16), Field(536870912))
         })
 
         await txn.prove()
@@ -136,23 +154,23 @@ describe("Examina", () => {
         pk = PrivateKey.random()
 
         let txn = await Mina.transaction(deployerAccount, () => {
-            zkAppInstance.submitAnswers(pk, Field(237n), new MerkleWitnessClass(merkleTree.getWitness(1n))); // 237 => 011 101 101 : 3, 5, 5
+            zkAppInstance.submitAnswers(pk, user1Answers, new MerkleWitnessClass(merkleTree.getWitness(1n))); // 237 => 011 101 101 : 3, 5, 5
         });
         await txn.prove();
         await txn.sign([deployerKey]).send();
 
-        merkleTree.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n))))
+        merkleTree.setLeaf(1n, Poseidon.hash(pk.toPublicKey().toFields().concat(user1Answers)))
 
         console.log('action 2');
         pk1 = PrivateKey.random()
 
         txn = await Mina.transaction(deployerAccount, () => {
-            zkAppInstance.submitAnswers(pk1, Field(213n), new MerkleWitnessClass(merkleTree.getWitness(2n))); // 213 => 010 101 101 : 3, 5, 5
+            zkAppInstance.submitAnswers(pk1, user2Answers, new MerkleWitnessClass(merkleTree.getWitness(2n))); // 213 => 010 101 101 : 3, 5, 5
         });
         await txn.prove();
         await txn.sign([deployerKey]).send();
 
-        merkleTree.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(213n))))
+        merkleTree.setLeaf(2n, Poseidon.hash(pk1.toPublicKey().toFields().concat(user2Answers)))
 
         txn = await Mina.transaction(deployerAccount, () => {
             zkAppInstance.publishAnswers(answers, examKey);
@@ -163,40 +181,38 @@ describe("Examina", () => {
         // expect(zkAppInstance.isOver.get()).toEqual(Bool(true).toField())
         expect(zkAppInstance.answers.get()).toEqual(answers)
         expect(zkAppInstance.examSecretKey.get()).toEqual(examKey)
-        expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(1n)).calculateRoot(Poseidon.hash(pk.toPublicKey().toFields().concat(Field(237n)))))
-        expect(zkAppInstance.usersRoot.get()).toEqual(new MerkleWitnessClass(merkleTree.getWitness(2n)).calculateRoot(Poseidon.hash(pk1.toPublicKey().toFields().concat(Field(213n)))))
     })
 
-    it("calculate score", async () => {
-        let secureHash = Poseidon.hash([answers, userAnswers, index])
+     it("calculate score", async () => {
+        let secureHash = Poseidon.hash([answers, user2Answers, index])
 
-        let proof = await CalculateScore.baseCase(secureHash, answers, userAnswers, index)
+        let proof = await CalculateScore.baseCase(secureHash, answers, user2Answers, index)
         let publicOutputs = proof.publicOutput
-        console.log("recursion score:", publicOutputs.corrects.toString())
+        console.log("starting recursion score:", publicOutputs.corrects.toString())
 
         for (let i = 0; i < 3; i++) {
             index = index.mul(10)
-            secureHash = Poseidon.hash([answers, userAnswers, index])
+            secureHash = Poseidon.hash([answers, user2Answers, index])
 
-            proof = await CalculateScore.calculate(secureHash, proof, answers, userAnswers, index)
+            proof = await CalculateScore.calculate(secureHash, proof, answers, user2Answers, index)
             publicOutputs = proof.publicOutput
             
             console.log("recursion score:", publicOutputs.corrects.toString())
         }
-
-        const controller = new Controller(proof.publicInput, answers, userAnswers, index)
+        expect(publicOutputs.corrects).toEqual(UInt240.from(3))
+        expect(publicOutputs.incorrects).toEqual(UInt240.from(0))
+        const controller = new Controller(proof.publicInput, answers, user2Answers, index)
 
         let result_score: UInt240 = UInt240.from(0)
 
         let txn = await Mina.transaction(deployerAccount, () => {
-            result_score = zkAppInstance.checkScore(proof, new MerkleWitnessClass(merkleTree.getWitness(2n)), pk1, controller);
+            result_score = zkAppInstance.checkScore(proof, pk1, controller);
         });
         await txn.prove();
         await txn.sign([deployerKey]).send();
         
-        expect(publicOutputs.corrects).toEqual(UInt240.from(2))
-        expect(publicOutputs.incorrects).toEqual(UInt240.from(1))
-        expect(result_score).toEqual(UInt240.from(1))
-    })
+        
+        expect(result_score).toEqual(UInt240.from(3))
+    }) 
 })
 

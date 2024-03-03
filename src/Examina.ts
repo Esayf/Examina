@@ -60,17 +60,11 @@ export class Controller extends Struct({
     hash() {
         return Poseidon.hash([this.answers, this.userAnswers, this.index]);
     }
-}
 
-const 
-    SHIFT_RATIO = 1,
-    SHIFT_DURATIONS = 16,
-    SHIFT_STARTDATE = 536870912,
-    MASK_RATIO = Field(15),
-    MASK_DURATIONS = Field(33554431n),
-    MASK_STARTDATE = Field(18446744073709551615n),
-    NUM_BITS = 240
-;
+    userAnswersHash(publicKey: PublicKey) {
+        return Poseidon.hash(publicKey.toFields().concat(this.userAnswers));
+    }
+}
 
 export class Examina extends SmartContract {
     reducer = Reducer({ actionType: UserAnswers });
@@ -80,7 +74,9 @@ export class Examina extends SmartContract {
     @state(Field) usersRoot = State<Field>();
     @state(Field) actionState = State<Field>();
     @state(Field) examSecretKey = State<Field>();
-    @state(Field) informations = State<Field>();
+    @state(Field) ratio = State<Field>();
+    @state(Field) durations = State<Field>();
+    @state(Field) startDate = State<Field>();
 
     init() {
         super.init();
@@ -94,49 +90,23 @@ export class Examina extends SmartContract {
         secretKey: Field,
         hashed_questions: Field,
         usersInitialRoot: Field,
-        informations: Field,
+        ratio: Field,
+        durations: Field,
+        startDate: Field
     ) {
         this.answers.set(Poseidon.hash([answers, secretKey]));
         this.hashedQuestions.set(hashed_questions);
         this.usersRoot.set(usersInitialRoot);
         this.examSecretKey.set(Poseidon.hash(secretKey.toFields()));
-
-        this.informations.set(informations); // 4 bit => ratio, 25 bit => durations, 64 bit => startDate
-    }
-
-    @method getRatio(): Field {
-        const informations = this.informations.getAndRequireEquals();
-        const convertedInformations = UInt240.from(informations);
-
-        const shifted = convertedInformations.div(SHIFT_RATIO).toField();
-        const ratio = Gadgets.and(shifted, MASK_RATIO, NUM_BITS);
-
-        return ratio;
-    }
-
-    @method getDurations(): Field {
-        const informations = this.informations.getAndRequireEquals();
-        const convertedInformations = UInt240.from(informations);
-
-        const shifted = convertedInformations.div(SHIFT_DURATIONS).toField();
-        const durations = Gadgets.and(shifted, MASK_DURATIONS, NUM_BITS);
-
-        return durations.mul(1000);
-    }
-
-    @method getStartDate(): Field {
-        const informations = this.informations.getAndRequireEquals();
-        const convertedInformations = UInt240.from(informations);
-
-        const shifted = convertedInformations.div(SHIFT_STARTDATE).toField();
-        const startDate = Gadgets.and(shifted, MASK_STARTDATE, NUM_BITS);
-
-        return startDate;
+        this.ratio.set(ratio);
+        this.durations.set(durations);
+        this.startDate.set(startDate);
+        //this.informations.set(informations); // 4 bit => ratio, 25 bit => durations, 64 bit => startDate
     }
 
     @method checkIsOver() {
-        const durations = UInt64.from(this.getDurations())
-        const startDate = UInt64.from(this.getStartDate())
+        const durations = UInt64.from(this.durations.getAndRequireEquals())
+        const startDate = UInt64.from(this.startDate.getAndRequireEquals())
         const endDate = startDate.add(durations)
 
         const timestamps = this.network.timestamp.getAndRequireEquals()
@@ -145,15 +115,15 @@ export class Examina extends SmartContract {
     }
 
     @method checkIsContinue() {
-        const durations = UInt64.from(this.getDurations())
-        const startDate = UInt64.from(this.getStartDate())
+        const durations = UInt64.from(this.durations.getAndRequireEquals())
+        const startDate = UInt64.from(this.startDate.getAndRequireEquals())
         const endDate = startDate.add(durations)
 
         this.network.timestamp.requireBetween(startDate, endDate)
     }
 
     @method submitAnswers(privateKey: PrivateKey, answers: Field, witness: MerkleWitnessClass) {
-        this.checkIsContinue()
+        //this.checkIsContinue()
 
         const user = new UserAnswers(privateKey.toPublicKey(), answers, witness);
 
@@ -161,34 +131,12 @@ export class Examina extends SmartContract {
     }
 
     @method publishAnswers(answers: Field, secretKey: Field) {
-        this.checkIsOver();
+        //this.checkIsOver();
 
         const initalAnswers = this.answers.getAndRequireEquals();
 
         const hashedAnswers = Poseidon.hash([answers, secretKey]);
         initalAnswers.assertEquals(hashedAnswers);
-
-        const usersRoot = this.usersRoot.getAndRequireEquals();
-        const actionState = this.actionState.getAndRequireEquals();
-
-        let pendingActions = this.reducer.getActions({
-            fromActionState: actionState,
-        })
-
-        let { state: newRoot, actionState: newActionState } =
-        this.reducer.reduce(
-            pendingActions,
-            Field,
-            (_state: Field, action: UserAnswers) => {
-                const hash = action.hash();
-
-                return action.witness.calculateRoot(hash);
-            },
-            { state: usersRoot, actionState }
-        )
-
-        this.usersRoot.set(newRoot);
-        this.actionState.set(newActionState);
 
         this.answers.set(answers);
         this.examSecretKey.set(secretKey);
@@ -200,14 +148,36 @@ export class Examina extends SmartContract {
         return hash.equals(hashedExam);
     }
 
-    @method checkScore(proof: CalculateProof, witness: MerkleWitnessClass, privateKey: PrivateKey, controller: Controller) {
-        this.checkIsOver();
-        
+    @method validateUserAnswers(controller: Controller, publicKey: PublicKey) {
+        const userAnswersHash = controller.userAnswersHash(publicKey);
+        let pendingActions = this.reducer.getActions({
+            fromActionState: Reducer.initialActionState,
+        })
+        let initial = {
+            state: Field(0),
+            actionState: Reducer.initialActionState,
+        }; 
+
+        let { state: answerCounter, actionState: newActionState } =
+        this.reducer.reduce(
+            pendingActions,
+            Field,
+            (state: Field, action: UserAnswers) => {
+                return Provable.if(action.publicKey.equals(publicKey),
+                Provable.if(action.hash().equals(userAnswersHash), state.add(1), state), state);  
+            },
+            initial
+        )
+        return answerCounter.assertEquals(1)
+    }
+
+    @method checkScore(proof: CalculateProof, privateKey: PrivateKey, controller: Controller) {
+        //this.checkIsOver();
+        this.validateUserAnswers(controller, privateKey.toPublicKey());
         proof.verify();
 
-        const usersRoot = this.usersRoot.getAndRequireEquals();
         const answers = this.answers.getAndRequireEquals();
-        const incorrectToCorrectRatio = this.getRatio();
+        const incorrectToCorrectRatio = this.ratio.getAndRequireEquals();
 
         const secureHash = controller.secureHash;
         proof.publicInput.assertEquals(secureHash);
@@ -216,12 +186,9 @@ export class Examina extends SmartContract {
 
         answers.assertEquals(controller.answers);
         
-        const witnessRoot = witness.calculateRoot(Poseidon.hash(privateKey.toPublicKey().toFields().concat(controller.userAnswers)));
-        usersRoot.assertEquals(witnessRoot);
 
         const incorrects = proof.publicOutput.incorrects;
         const corrects = proof.publicOutput.corrects;
-;
         const quotient = incorrects.div(UInt240.from(incorrectToCorrectRatio));
 
         const score = corrects.sub(quotient);

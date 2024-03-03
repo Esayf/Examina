@@ -25,11 +25,13 @@ export class PublicOutputs extends Struct({
     }
     
     correct() {
-        return new PublicOutputs(this.corrects.add(INCREMENT), this.incorrects);
+        this.corrects = this.corrects.add(INCREMENT);
+        return new PublicOutputs(this.corrects, this.incorrects);
     }
 
     incorrect() {
-        return new PublicOutputs(this.corrects, this.incorrects.add(INCREMENT));
+        this.incorrects = this.incorrects.add(INCREMENT);
+        return new PublicOutputs(this.corrects, this.incorrects);
     }
 }
 
@@ -65,6 +67,8 @@ export const CalculateScore = ZkProgram({
                 earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.div(INDEX_MULTIPLIER)]));
                 secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]));
 
+                
+            
                 const publicOutputs = earlierProof.publicOutput;
 
                 const i = UInt240.from(index);
@@ -77,14 +81,13 @@ export const CalculateScore = ZkProgram({
 
                 const equation = remainderOfAnswers.equals(BLANK_VALUE).not().and(remainderOfAnswers.equals(remainderOfUserAnswers));
 
-                const { corrects, incorrects } = Provable.if (
+                const newPublicOutput = Provable.if (
                     equation,
                     PublicOutputs,
-                    publicOutputs.correct(),
-                    publicOutputs.incorrect()
-                )
-
-                return new PublicOutputs(corrects, incorrects);
+                    new PublicOutputs(earlierProof.publicOutput.corrects.add(1), earlierProof.publicOutput.incorrects),
+                    new PublicOutputs(earlierProof.publicOutput.corrects, earlierProof.publicOutput.incorrects.add(1)),
+                );
+                return new PublicOutputs(newPublicOutput.corrects, newPublicOutput.incorrects);
             },
         },
     },
