@@ -1,14 +1,12 @@
-import { Field, ZkProgram, SelfProof, Provable, Struct, Poseidon, Int64 } from 'o1js';
-import { UInt240 } from "./int.js"
-
+import { Field, SelfProof, Provable, Struct, Poseidon, ZkProgram } from 'o1js';
+import { UInt240 } from './int';
 const 
-    INDEX_MULTIPLIER = 10,
     INITIAL_CORRECTS = 0,
     INITIAL_INCORRECTS = 0,
     BLANK_VALUE = 0,
     INCREMENT = 1,
-    ANSWER_DIVISOR = UInt240.from(10n)
-;
+    ANSWER_DIVISOR = UInt240.from(10n),
+    INDEX_MULTIPLIER = 10;
 
 export class PublicOutputs extends Struct({
     corrects: UInt240,
@@ -44,7 +42,7 @@ export const CalculateScore = ZkProgram({
         baseCase: {
             privateInputs: [Field, Field, Field],
 
-            method(secureHash: Field, answers: Field, userAnswers: Field, index: Field) {
+            async method(secureHash: Field, answers: Field, userAnswers: Field, index: Field) {
                 index.mul(INDEX_MULTIPLIER).assertEquals(1);
                 secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]));
 
@@ -55,7 +53,7 @@ export const CalculateScore = ZkProgram({
         calculate: {
             privateInputs: [SelfProof, Field, Field, Field],
 
-            method (
+            async method (
                 secureHash: Field,
                 earlierProof: SelfProof<Field, PublicOutputs>,
                 answers: Field,
@@ -66,10 +64,6 @@ export const CalculateScore = ZkProgram({
                 
                 earlierProof.publicInput.assertEquals(Poseidon.hash([answers, userAnswers, index.div(INDEX_MULTIPLIER)]));
                 secureHash.assertEquals(Poseidon.hash([answers, userAnswers, index]));
-
-                
-            
-                const publicOutputs = earlierProof.publicOutput;
 
                 const i = UInt240.from(index);
 
