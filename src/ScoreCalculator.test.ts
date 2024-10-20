@@ -12,6 +12,6 @@ describe("ScoreCalculator", () => {
         const proof = await ScoreCalculator.calculateScore(Field(0b01));
         console.log('proving..');
         console.log(proof.publicOutput);
-        expect(proof.publicOutput).toBe(10);
+        expect(proof.publicOutput).toBe(5);
     });
 });

@@ -21,6 +21,14 @@ class AnswerProof extends DynamicProof<Field, Field> {
     static featureFlags = featureFlags;
 }
 
+export class UserAnswers extends Struct({
+    answers: Provable.Array(Field, 80),
+    answerProof: AnswerProof
+}) {
+    answers: Field[];
+    answerProof: AnswerProof;
+}
+
 export class ScoreOutputs extends Struct({
     corrects: UInt256,
     incorrects: UInt256

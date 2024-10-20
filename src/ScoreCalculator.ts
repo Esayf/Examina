@@ -52,7 +52,7 @@ export const ScoreCalculator = ZkProgram({
         calculateScore: {
             privateInputs: [],
             async method(x :Field) {
-                return countSetBitsBigInt(Field.from(0b01101));
+                return countSetBitsBigInt(Field.from(0b01101101));
             }
         }
     }
