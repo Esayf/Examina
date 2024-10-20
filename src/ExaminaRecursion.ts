@@ -1,4 +1,4 @@
-import { Field, SelfProof, Provable, Struct, Poseidon, ZkProgram } from 'o1js';
+/* import { Field, SelfProof, Provable, Struct, Poseidon, ZkProgram } from 'o1js';
 import { UInt240 } from './int';
 const 
     INITIAL_CORRECTS = 0,
@@ -85,4 +85,4 @@ export const CalculateScore = ZkProgram({
             },
         },
     },
-});
+}); */
