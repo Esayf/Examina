@@ -1,3 +1,3 @@
-import { Examina } from './Examina.js';
-
-export { Examina };
+import { ScoreCalculationLoop } from './ScoreCalculationLoop.js';
+import { ScoreCalculator } from './ScoreCalculator.js';
+export { ScoreCalculationLoop, ScoreCalculator };

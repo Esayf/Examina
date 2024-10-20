@@ -50,9 +50,10 @@ export const ScoreCalculator = ZkProgram({
     publicOutput: Field,
     methods: {
         calculateScore: {
-            privateInputs: [],
-            async method(x :Field) {
-                return countSetBitsBigInt(Field.from(0b01101101));
+            privateInputs: [Field, Field],
+            async method(answersProof: Field,userAnswers :Field, correctAnswers :Field) {
+                const incorrectsNotCut = Gadgets.xor(userAnswers, correctAnswers, 64);
+                return countSetBitsBigInt(Field.from(incorrectsNotCut));
             }
         }
     }

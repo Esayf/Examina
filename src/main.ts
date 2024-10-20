@@ -1,4 +1,4 @@
-import { Examina, MerkleWitnessClass, Controller } from './Examina.js';
+/* import { Examina, MerkleWitnessClass, Controller } from './Examina.js';
 import { CalculateScore, PublicOutputs } from './ExaminaRecursion.js'
 import {
   Field,
@@ -137,3 +137,4 @@ await tx.prove();
 await tx.sign([feePayerKey]).send();
 
 console.log('contract score: ' +  result_score);
+ */
