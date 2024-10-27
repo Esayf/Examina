@@ -1,4 +1,4 @@
-import { Quiz, offchainState } from "../Quiz";
+import { Quiz, offchainState, adminKey } from "../Quiz";
 import { Field, Mina, PublicKey, PrivateKey } from "o1js";
 import { randomAccounts, testSetup } from "./utils";
 
@@ -23,6 +23,7 @@ describe("Quiz", () => {
         keys = _keys;
         addresses = _addresses;
         quiz_contract = new Quiz(addresses.contract);
+        console.log(adminKey);
         quiz_contract.offchainState.setContractInstance(quiz_contract);
         await offchainState.compile();
         await Quiz.compile({forceRecompile: true});

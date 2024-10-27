@@ -2,7 +2,6 @@
 import { AccountUpdate, assert, Bool, Experimental, Field, method, Poseidon, PrivateKey, PublicKey, SmartContract, state, State, Struct, UInt64 } from 'o1js';
 class PauseToggleEvent extends Struct({ was_paused: Bool, is_paused: Bool }) {}
 export const adminKey = PrivateKey.random();
-
 export class WinnerState extends Struct({
     amount: UInt64,
     isPaid: Bool,
