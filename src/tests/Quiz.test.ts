@@ -22,7 +22,7 @@ describe("Quiz", () => {
         };
         keys = _keys;
         addresses = _addresses;
-        console.log(adminKey);
+        console.log(adminKey.toBase58());
         quiz_contract = new Quiz(addresses.contract);
         quiz_contract.offchainState.setContractInstance(quiz_contract);
         await offchainState.compile();
