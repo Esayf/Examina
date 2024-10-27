@@ -22,8 +22,8 @@ describe("Quiz", () => {
         };
         keys = _keys;
         addresses = _addresses;
-        quiz_contract = new Quiz(addresses.contract);
         console.log(adminKey);
+        quiz_contract = new Quiz(addresses.contract);
         quiz_contract.offchainState.setContractInstance(quiz_contract);
         await offchainState.compile();
         await Quiz.compile({forceRecompile: true});
