@@ -1,6 +1,7 @@
 
 import { AccountUpdate, assert, Bool, Experimental, Field, method, Poseidon, PrivateKey, PublicKey, SmartContract, state, State, Struct, UInt64 } from 'o1js';
 class PauseToggleEvent extends Struct({ was_paused: Bool, is_paused: Bool }) {}
+export const adminKey = PrivateKey.random();
 
 export class WinnerState extends Struct({
     amount: UInt64,
@@ -15,7 +16,6 @@ export class QuizState extends Struct({
 }) {}
 
 const { OffchainState } = Experimental;
-const adminKey = PrivateKey.random().toPublicKey();
 export const offchainState = OffchainState(
     {
         winners: OffchainState.Map(PublicKey, WinnerState),
@@ -34,7 +34,7 @@ export class Quiz extends SmartContract {
 
     init() {
         super.init();
-        this.admin.set(adminKey);
+        this.admin.set(adminKey.toPublicKey());
     }
 
 
@@ -44,6 +44,7 @@ export class Quiz extends SmartContract {
         startDate: UInt64,
         totalRewardPoolAmount: UInt64 // This is the total reward pool
     ) {
+        this.sender.getAndRequireSignature().assertEquals(this.admin.getAndRequireEquals());
         this.offchainState.fields.quizState.overwrite({secretKey, duration, startDate});
         await this.deposit(this.sender.getAndRequireSignature(), totalRewardPoolAmount);
     }
@@ -55,6 +56,7 @@ export class Quiz extends SmartContract {
  */
     @method
     async settle(proof: StateProof) {
+        this.sender.getAndRequireSignature().assertEquals(this.admin.getAndRequireEquals());
         await this.offchainState.settle(proof);
     }
 
@@ -93,6 +95,7 @@ export class Quiz extends SmartContract {
         winner2: PublicKey,
         winner3: PublicKey
     ) {
+        this.sender.getAndRequireSignature().assertEquals(this.admin.getAndRequireEquals());
         await this.checkIsOver();
         const balance = this.account.balance.getAndRequireEquals();
         const winner1State = (await this.offchainState.fields.winners.get(winner1)).assertSome("Winner1 not found");

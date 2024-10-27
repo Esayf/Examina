@@ -11,7 +11,7 @@ describe("Quiz", () => {
     it("should pay out the winners", async () => {
         const Local = await Mina.LocalBlockchain({ proofsEnabled: false });
         const { keys: _keys, addresses: _addresses } = randomAccounts(
-            'contract',
+            'admin',
             'user1',
             'user2'
         );

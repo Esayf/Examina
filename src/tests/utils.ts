@@ -1,5 +1,6 @@
 import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, UInt64 } from 'o1js';
 import { Quiz } from '../Quiz';
+import { adminKey } from '../Quiz';
 
 export { randomAccounts, testSetup, settle };
 
@@ -10,7 +11,7 @@ function randomAccounts<K extends string>(
 ): { keys: Record<K, PrivateKey>; addresses: Record<K, PublicKey> } {
     let base58Keys = Array(names.length)
         .fill('')
-        .map(() => PrivateKey.random().toBase58());
+        .map((_, idx) => names[idx] === 'admin' ? adminKey.toBase58() : PrivateKey.random().toBase58());
     let keys = Object.fromEntries(
         names.map((name, idx) => [name, PrivateKey.fromBase58(base58Keys[idx])])
     ) as Record<K, PrivateKey>;
