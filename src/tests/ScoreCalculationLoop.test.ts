@@ -5,7 +5,7 @@ describe("ScoreCalculationLoop", () => {
     it("should calculate the score", async () => {
         console.log('compiling..');
         console.time('compile');
-        await ScoreCalculationLoop.compile({proofsEnabled: false});
+        await ScoreCalculationLoop.compile();
         console.timeEnd('compile');
 
         const userAnswers = new UserAnswers([Field(0b01), Field(0b10), Field(0b01), Field(0b01), Field(0b01), Field(0b01), Field(0b01), Field(0b01), Field(0b01), Field(0b01)]);

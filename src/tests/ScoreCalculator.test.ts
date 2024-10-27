@@ -5,7 +5,7 @@ describe("ScoreCalculator", () => {
     it("should calculate the score", async () => {
         console.log('compiling..');
         console.time('compile');
-        await ScoreCalculator.compile({proofsEnabled: false});
+        await ScoreCalculator.compile();
         console.timeEnd('compile');
 
         console.log('proving..');
