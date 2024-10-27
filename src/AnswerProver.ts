@@ -23,7 +23,7 @@ export const AnswersProver = ZkProgram({
             async method(answersHash: Field, examContractAddress: Field, answers: Field, participant: PublicKey, participantSignature: Signature) {
                 participantSignature.verify(participant, [examContractAddress, answers]);
                 answersHash.assertEquals(Poseidon.hash([examContractAddress, answers]));
-                return new PublicAnswerProofOutputs(answersHash, examContractAddress);
+                return { publicOutput: new PublicAnswerProofOutputs(answersHash, examContractAddress) };
             }
         }
     }

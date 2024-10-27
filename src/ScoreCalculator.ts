@@ -1,15 +1,7 @@
-import { Field, Struct, Poseidon, ZkProgram, DynamicProof, FeatureFlags, Gadgets, UInt64 } from 'o1js';
-import { PublicAnswerProofOutputs, AnswersProver } from './AnswerProver';
-import { UInt256 } from './UInt256';
-const 
-    INITIAL_CORRECTS = 0,
-    INITIAL_INCORRECTS = 0,
-    BLANK_VALUE = 0,
-    INCREMENT = 1,
-    ANSWER_SEPERATOR = UInt256.from(7),
-    SEPERATOR_SHIFT_PER_ANSWER = 3;
+import { Field, ZkProgram, Gadgets } from 'o1js';
 
-function countSetBitsBigInt(v: Field) {
+
+function countSetBitsBigInt(v: Field): Field {
     const fieldV = v;
     const v1 = v.sub(Gadgets.and(Gadgets.rightShift64(fieldV, 1), Field(0x5555555555555555n), 64));
     const v2 = Gadgets.and(v1, Field(0x3333333333333333n), 64).add(Gadgets.and(Gadgets.rightShift64(v1, 2), Field(0x3333333333333333n), 64));
@@ -19,41 +11,17 @@ function countSetBitsBigInt(v: Field) {
     const v7 = v6.add(Gadgets.rightShift64(v6, 32));
     return Gadgets.and(v7, Field(0x7Fn), 64);
 }
-    
-const featureFlags = await FeatureFlags.fromZkProgram(AnswersProver);
-
-class AnswerProof extends DynamicProof<Field, Field> {
-    static publicInputType = Field;
-    static publicOutputType = Field;
-    static maxProofsVerified = 0 as const;
-    
-    // we use the feature flags that we computed from the `answerProof` ZkProgram
-    static featureFlags = featureFlags;
-    }
-export class ScoreOutputs extends Struct({
-    corrects: UInt256,
-    incorrects: UInt256
-}) {
-    constructor(corrects: UInt256, incorrects: UInt256) {
-        super({
-            corrects,
-            incorrects
-        })
-        this.corrects = corrects;
-        this.incorrects = incorrects;
-    }
-}
 
 export const ScoreCalculator = ZkProgram({
     name: "score-calculator",
-    publicInput: Field,
     publicOutput: Field,
     methods: {
         calculateScore: {
             privateInputs: [Field, Field],
-            async method(answersProof: Field,userAnswers :Field, correctAnswers :Field) {
+            async method(userAnswers: Field, correctAnswers: Field) {
                 const incorrectsNotCut = Gadgets.xor(userAnswers, correctAnswers, 64);
-                return countSetBitsBigInt(Field.from(incorrectsNotCut));
+                const score = countSetBitsBigInt(incorrectsNotCut);
+                return { publicOutput: score };
             }
         }
     }

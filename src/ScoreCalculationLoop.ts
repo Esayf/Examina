@@ -61,22 +61,18 @@ export class ScoreOutputs extends Struct({
 
 export const ScoreCalculationLoop = ZkProgram({
     name: "score-calculation-loop",
-    publicInput: Field,
     publicOutput: Field,
     methods: {
         calculateScore: {
             privateInputs: [UserAnswers, CorrectAnswers],
-            async method(answersProof: Field, answers: UserAnswers, correctAnswers: CorrectAnswers) {
+            async method(answers: UserAnswers, correctAnswers: CorrectAnswers) {
                 let corrects = new Field("0");
                 for (let i = 0; i < 80; i+=1) {
                     const isCorrect = answers.answers[i].equals(correctAnswers.answers[i]);
-                    corrects = Provable.if(isCorrect,
-                        corrects.add(Field.from("1")),
-                        corrects
-                        )
+                    corrects = Provable.if(isCorrect, corrects.add(Field.from("1")), corrects);
                 }
 
-                return corrects;
+                return { publicOutput: corrects };
             }
         }
     }
