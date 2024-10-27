@@ -46,7 +46,7 @@ async function testSetup(
     const deployTx = await Mina.transaction(
         { sender: sender0.address, fee: 1e5 },
         async () => {
-            AccountUpdate.fundNewAccount(sender0.address, 2);
+            AccountUpdate.fundNewAccount(sender0.address, 1);
             quiz_contract.deploy();
         }
     );
@@ -55,14 +55,15 @@ async function testSetup(
     await deployTx.send().wait();
 
     const fundTx = await Mina.transaction(
-        { sender: sender.address, fee: 1e5 },
+        { sender: sender0.address, fee: 1e5 },
         async () => {
-            const au = AccountUpdate.fundNewAccount(sender.address, 2);
+            const au = AccountUpdate.fundNewAccount(sender0.address, 3);
             au.send({ to: addresses.user1, amount: 1e9 });
             au.send({ to: addresses.user2, amount: 1e9 });
+            au.send({ to: sender.address, amount: 9e9});
         }
     );
-    fundTx.sign([sender.key]);
+    fundTx.sign([sender0.key]);
     await fundTx.send().wait();
 
     const initTx = await Mina.transaction(

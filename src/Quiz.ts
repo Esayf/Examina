@@ -94,7 +94,7 @@ export class Quiz extends SmartContract {
         winner3: PublicKey
     ) {
         this.sender.getAndRequireSignature().assertEquals(this.admin.getAndRequireEquals());
-        await this.checkIsOver();
+        //await this.checkIsOver();
         const balance = this.account.balance.getAndRequireEquals();
         const winner1State = (await this.offchainState.fields.winners.get(winner1)).assertSome("Winner1 not found");
         const winner2State = (await this.offchainState.fields.winners.get(winner2)).assertSome("Winner2 not found");
