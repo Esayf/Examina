@@ -1,6 +1,5 @@
 
 import { AccountUpdate, assert, Bool, Experimental, Field, method, Poseidon, PrivateKey, PublicKey, SmartContract, state, State, Struct, UInt64 } from 'o1js';
-class PauseToggleEvent extends Struct({ was_paused: Bool, is_paused: Bool }) {}
 export const adminKey = PrivateKey.fromBase58("EKFY3NDqUJ4SRaxidXK3nWyyoassi7dRyicZ8pubyoqbUHN84i7J");
 export class WinnerState extends Struct({
     amount: UInt64,

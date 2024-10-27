@@ -21,6 +21,7 @@ function randomAccounts<K extends string>(
 }
 
 async function testSetup(
+    Local: any,
     quiz_contract: Quiz,
     sender: { address: PublicKey; key: PrivateKey },
     addresses: Record<string, PublicKey>,
@@ -37,15 +38,20 @@ async function testSetup(
      *
      */
 
+    const sender0 = {
+        address: Local.testAccounts[0].key.toPublicKey(),
+        key: Local.testAccounts[0].key,
+      };
+
     const deployTx = await Mina.transaction(
-        { sender: sender.address, fee: 1e5 },
+        { sender: sender0.address, fee: 1e5 },
         async () => {
             AccountUpdate.fundNewAccount(sender.address);
             quiz_contract.deploy();
         }
     );
     await deployTx.prove();
-    deployTx.sign([sender.key, keys.contract]);
+    deployTx.sign([sender0.key, keys.contract]);
     await deployTx.send().wait();
 
     const fundTx = await Mina.transaction(

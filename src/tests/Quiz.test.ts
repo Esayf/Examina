@@ -26,6 +26,6 @@ describe("Quiz", () => {
         quiz_contract.offchainState.setContractInstance(quiz_contract);
         await offchainState.compile();
         await Quiz.compile({forceRecompile: true});
-        await testSetup(quiz_contract, sender, addresses, keys);
+        await testSetup(Local, quiz_contract, sender, addresses, keys);
     });
 });
