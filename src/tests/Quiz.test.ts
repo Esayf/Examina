@@ -11,18 +11,17 @@ describe("Quiz", () => {
     it("should pay out the winners", async () => {
         const Local = await Mina.LocalBlockchain({ proofsEnabled: false });
         const { keys: _keys, addresses: _addresses } = randomAccounts(
-            'admin',
+            'contract',
             'user1',
             'user2'
         );
         Mina.setActiveInstance(Local);
         sender = {
-            address: Local.testAccounts[0].key.toPublicKey(),
-            key: Local.testAccounts[0].key,
+            address: PrivateKey.fromBase58("EKFY3NDqUJ4SRaxidXK3nWyyoassi7dRyicZ8pubyoqbUHN84i7J").toPublicKey(),
+            key: PrivateKey.fromBase58("EKFY3NDqUJ4SRaxidXK3nWyyoassi7dRyicZ8pubyoqbUHN84i7J"),
         };
         keys = _keys;
         addresses = _addresses;
-        console.log(adminKey.toBase58());
         quiz_contract = new Quiz(addresses.contract);
         quiz_contract.offchainState.setContractInstance(quiz_contract);
         await offchainState.compile();
