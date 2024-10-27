@@ -46,7 +46,7 @@ async function testSetup(
     const deployTx = await Mina.transaction(
         { sender: sender0.address, fee: 1e5 },
         async () => {
-            AccountUpdate.fundNewAccount(sender.address);
+            AccountUpdate.fundNewAccount(sender0.address, 2);
             quiz_contract.deploy();
         }
     );
