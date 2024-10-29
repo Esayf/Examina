@@ -7,10 +7,12 @@ let sender: { address: PublicKey; key: PrivateKey };
 let quiz_contract: Quiz;
 let addresses: Record<string, PublicKey>;
 let keys: Record<string, PrivateKey>;
+let Local: any;
 
 describe("Quiz", () => {
-    it("should pay out the winners", async () => {
-        const Local = await Mina.LocalBlockchain({ proofsEnabled: false });
+
+    beforeAll(async () => {
+        Local = await Mina.LocalBlockchain({ proofsEnabled: false });
         const { keys: _keys, addresses: _addresses } = randomAccounts(
             'contract',
             'user1',
@@ -20,6 +22,7 @@ describe("Quiz", () => {
             'user5',
             'user6'
         );
+
         Mina.setActiveInstance(Local);
         sender = {
             address: PrivateKey.fromBase58("EKFY3NDqUJ4SRaxidXK3nWyyoassi7dRyicZ8pubyoqbUHN84i7J").toPublicKey(),
@@ -32,6 +35,13 @@ describe("Quiz", () => {
         await offchainState.compile();
         await Quiz.compile();
         await testSetup(Local, quiz_contract, sender, addresses, keys);
+    })
+
+    it("should initialize the quiz", async () => {
+
+    })
+
+    it("should pay out the winners", async () => {
         const quizState = new QuizState({secretKey: Field(1), duration: UInt64.from(10 * 100 * 60), startDate: UInt64.from(Date.now())})
         expect((await quiz_contract.getDuration()).toString()).toEqual(quizState.duration.toString())
         const exampleQuizState1: WinnerState = { amount: UInt64.from(1e1), isPaid: Bool(false), finishDate: UInt64.from(Date.now()) }
