@@ -1,5 +1,5 @@
 
-import { AccountUpdate, assert, Bool, Experimental, Field, method, Poseidon, PrivateKey, PublicKey, SmartContract, state, State, Struct, UInt64 } from 'o1js';
+import { AccountUpdate, assert, Bool, Experimental, Field, method, Poseidon, PrivateKey, Provable, PublicKey, SmartContract, state, State, Struct, UInt64 } from 'o1js';
 export const adminKey = PrivateKey.fromBase58("EKFY3NDqUJ4SRaxidXK3nWyyoassi7dRyicZ8pubyoqbUHN84i7J");
 export class WinnerState extends Struct({
     amount: UInt64,
@@ -13,6 +13,7 @@ export class QuizState extends Struct({
     secretKey: Field
 }) {}
 
+const MAX_ACTIONS_PER_PROOF = 8
 const { OffchainState } = Experimental;
 export const offchainState = OffchainState(
     {
@@ -20,7 +21,7 @@ export const offchainState = OffchainState(
         quizState: OffchainState.Field(QuizState),
         
     },
-    { logTotalCapacity: 10, maxActionsPerProof: 5}
+    { logTotalCapacity: 10, maxActionsPerProof: MAX_ACTIONS_PER_PROOF}
 );
 export class StateProof extends offchainState.Proof { }
 
@@ -45,6 +46,14 @@ export class Quiz extends SmartContract {
         this.sender.getAndRequireSignature().assertEquals(this.admin.getAndRequireEquals());
         this.offchainState.fields.quizState.overwrite({secretKey, duration, startDate});
         await this.deposit(this.sender.getAndRequireSignature(), totalRewardPoolAmount);
+    }
+
+    @method async setWinner(
+        winner: PublicKey,
+        winnerState: WinnerState,
+    ) {
+        this.sender.getAndRequireSignature().assertEquals(this.admin.getAndRequireEquals());
+        this.offchainState.fields.winners.overwrite(winner, winnerState);
     }
 
     /**
@@ -105,7 +114,7 @@ export class Quiz extends SmartContract {
         const reward1 = winner1State.amount
         const reward2 = winner2State.amount
         const reward3 = winner3State.amount
-        assert(balance.greaterThanOrEqual(reward1.add(reward2).add(reward3)), "balance must be greater than 0");
+        assert(balance.greaterThanOrEqual(reward1.add(reward2).add(reward3)), "balance must be greater than payout");
         // finally, we send the payouts
         this.send({ to: winner1, amount: reward1 });
         this.send({ to: winner2, amount: reward2 });
@@ -113,5 +122,22 @@ export class Quiz extends SmartContract {
         this.offchainState.fields.winners.update(winner1, { from: winner1State, to: { ...winner1State, isPaid: Bool(true) } });
         this.offchainState.fields.winners.update(winner2, { from: winner2State, to: { ...winner2State, isPaid: Bool(true) } });
         this.offchainState.fields.winners.update(winner3, { from: winner3State, to: { ...winner3State, isPaid: Bool(true) } });
+    }
+
+
+    @method.returns(WinnerState)
+    async getWinnerState(winner: PublicKey) {
+        return (await this.offchainState.fields.winners.get(winner)).assertSome("Winner not found");
+    }
+
+    @method.returns(QuizState)
+    async getQuizState() {
+        return (await this.offchainState.fields.quizState.get()).assertSome("Quiz state not found");
+    }
+
+    @method.returns(UInt64)
+    async getDuration() {
+        const quizState = (await this.offchainState.fields.quizState.get()).assertSome("Quiz state not found");
+        return quizState.duration
     }
 }

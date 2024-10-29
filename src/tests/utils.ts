@@ -57,10 +57,14 @@ async function testSetup(
     const fundTx = await Mina.transaction(
         { sender: sender0.address, fee: 1e5 },
         async () => {
-            const au = AccountUpdate.fundNewAccount(sender0.address, 3);
+            const au = AccountUpdate.fundNewAccount(sender0.address, 7);
             au.send({ to: addresses.user1, amount: 1e9 });
             au.send({ to: addresses.user2, amount: 1e9 });
             au.send({ to: sender.address, amount: 9e9});
+            au.send({ to: addresses.user3, amount: 1e9 });
+            au.send({ to: addresses.user4, amount: 1e9 });
+            au.send({ to: addresses.user5, amount: 1e9 });
+            au.send({ to: addresses.user6, amount: 1e9 });
         }
     );
     fundTx.sign([sender0.key]);
@@ -69,7 +73,7 @@ async function testSetup(
     const initTx = await Mina.transaction(
         { sender: sender.address, fee: 1e9 },
         async () => {
-            await quiz_contract.initQuizState(SECRET_KEY, UInt64.from(10 * 100 * 60), UInt64.from(Date.now()), UInt64.from(1000));
+            await quiz_contract.initQuizState(SECRET_KEY, UInt64.from(10 * 100 * 60), UInt64.from(Date.now()), UInt64.from(6e3));
         }
     );
     await initTx.prove();
