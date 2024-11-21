@@ -1,7 +1,9 @@
-import { AccountUpdate, Field, Mina, PrivateKey, PublicKey, UInt64 } from 'o1js';
+import { AccountUpdate, Field, MerkleMap, Mina, PrivateKey, PublicKey, UInt64 } from 'o1js';
 import { Quiz } from '../Quiz';
 import { adminKey } from '../Quiz';
-export { randomAccounts, testSetup, settle };
+import { Winner, WinnerInput } from '../WinnersProver';
+import { WinnersProver } from '../WinnersProver';
+export { randomAccounts, testSetup };
 
 const SECRET_KEY = Field(1);
 
@@ -73,29 +75,10 @@ async function testSetup(
     const initTx = await Mina.transaction(
         { sender: sender.address, fee: 1e9 },
         async () => {
-            await quiz_contract.initQuizState(SECRET_KEY, UInt64.from(10 * 100 * 60), UInt64.from(Date.now()), UInt64.from(6e3));
+            await quiz_contract.initQuizState(SECRET_KEY, UInt64.from(10 * 100 * 60), UInt64.from(Date.now()), UInt64.from(6e3), UInt64.from(10 * 100 * 60));
         }
     );
     await initTx.prove();
     initTx.sign([sender.key]);
     await initTx.send().wait();
-
-    await settle(quiz_contract, sender);
-}
-async function settle(
-    quiz_contract: Quiz,
-    sender: { address: PublicKey; key: PrivateKey }
-) {
-    const settlementProof =
-        await quiz_contract.offchainState.createSettlementProof();
-
-    const settleTx = await Mina.transaction(
-        { sender: sender.address, fee: 1e5 },
-        async () => {
-            await quiz_contract.settle(settlementProof);
-        }
-    );
-    settleTx.sign([sender.key]);
-    await settleTx.prove();
-    await settleTx.send().wait();
 }

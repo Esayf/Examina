@@ -1,16 +1,5 @@
-import { Field, Struct, Poseidon, ZkProgram, DynamicProof, FeatureFlags, Gadgets, UInt64, UInt8, MerkleWitness } from 'o1js';
-import { Provable } from 'o1js/dist/node/index'
-import { PublicAnswerProofOutputs, AnswersProver } from './AnswerProver';
-import { UInt256 } from './UInt256';
-const
-    INITIAL_CORRECTS = 0,
-    INITIAL_INCORRECTS = 0,
-    BLANK_VALUE = 0,
-    INCREMENT = 1,
-    ANSWER_SEPERATOR = UInt256.from(7),
-    SEPERATOR_SHIFT_PER_ANSWER = 3;
-
-const featureFlags = await FeatureFlags.fromZkProgram(AnswersProver);
+import { Field, Struct, ZkProgram, Provable, UInt8 } from 'o1js';
+//const featureFlags = await FeatureFlags.fromZkProgram(AnswersProver);
 
 /* class AnswerProof extends DynamicProof<Field, UserAnswerWitness> {
     static publicInputType = Field;
@@ -77,3 +66,5 @@ export const ScoreCalculationLoop = ZkProgram({
         }
     }
 })
+
+export class ScoreProof extends ZkProgram.Proof(ScoreCalculationLoop) {}
